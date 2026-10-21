@@ -99,7 +99,7 @@ describe('admin utenti', () => {
     mockApi({ 'GET /api/me': { status: 200, body: { user: AGENT } } });
     renderAt('/admin/utenti');
     expect(await screen.findByText('Ciao mario@rossi.it')).toBeTruthy();
-    expect(window.location.pathname).toBe('/');
+    await vi.waitFor(() => expect(window.location.pathname).toBe('/'));
   });
 });
 

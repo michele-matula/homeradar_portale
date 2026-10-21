@@ -1,5 +1,5 @@
 import { fireEvent, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AGENT, mockApi, NOT_LOGGED, renderAt } from './helpers';
 
 function fillLogin(email: string, password: string) {
@@ -13,7 +13,7 @@ describe('accesso', () => {
     mockApi({ 'GET /api/me': NOT_LOGGED });
     renderAt('/');
     expect(await screen.findByRole('button', { name: 'Accedi' })).toBeTruthy();
-    expect(window.location.pathname).toBe('/accedi');
+    await vi.waitFor(() => expect(window.location.pathname).toBe('/accedi'));
   });
 
   it('accesso riuscito porta alla home', async () => {
