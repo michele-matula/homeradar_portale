@@ -103,3 +103,8 @@ export function toComuneRefs(istat: string[]): ComuneRef[] {
     return c ? [toRef(c)] : [];
   });
 }
+
+export async function listUsers(db: D1Database): Promise<UserRow[]> {
+  const { results } = await db.prepare('SELECT * FROM users ORDER BY email').all<DbUser>();
+  return results.map(fromDb);
+}

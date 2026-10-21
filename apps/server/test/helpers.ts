@@ -19,3 +19,12 @@ export async function resetDb(): Promise<void> {
 export function cookieFrom(res: Response): string {
   return (res.headers.get('Set-Cookie') ?? '').split(';')[0] ?? '';
 }
+
+/** Utente attivo con una sessione aperta: restituisce id e cookie. */
+export async function loginAs(role: 'agent' | 'admin', email = `${role}-${crypto.randomUUID()}@test.it`): Promise<{ id: string; cookie: string }> {
+  const { insertUser } = await import('../src/users');
+  const { createSession } = await import('../src/session');
+  const u = await insertUser(env.DB, { email, role, comuni: [], maxComuni: 4 }, Date.now());
+  await env.DB.prepare("UPDATE users SET status = 'active' WHERE id = ?").bind(u.id).run();
+  return { id: u.id, cookie: (await createSession(env.DB, u.id, Date.now())).split(';')[0]! };
+}
