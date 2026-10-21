@@ -10,12 +10,46 @@ export function json(data: unknown, status = 200, headers?: HeadersInit): Respon
 
 export const fail = (status: number, error: string): Response => json({ error }, status);
 
+/** Limite di default dei corpi JSON: le richieste del portale sono piccole. */
+export const MAX_BODY_BYTES = 64 * 1024;
+
+/** Testo del corpo; null se supera `max` byte. Si conta leggendo: un corpo senza Content-Length non sfugge al limite. */
+async function readText(req: Request, max: number): Promise<string | null> {
+  const declared = req.headers.get('Content-Length');
+  if (declared != null && !(Number(declared) <= max)) return null;
+  if (!req.body) return '';
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(size);
+  let offset = 0;
+  for (const c of chunks) {
+    all.set(c, offset);
+    offset += c.byteLength;
+  }
+  return new TextDecoder().decode(all);
+}
+
 /** Corpo JSON validato con lo schema; altrimenti la risposta d'errore pronta. */
-export async function readBody<T>(req: Request, schema: z.ZodType<T>): Promise<T | Response> {
+export async function readBody<T>(
+  req: Request, schema: z.ZodType<T>, limit: { bytes: number; error: string } = { bytes: MAX_BODY_BYTES, error: 'Richiesta troppo grande' },
+): Promise<T | Response> {
   if (!(req.headers.get('Content-Type') ?? '').startsWith('application/json')) return fail(415, 'Serve un corpo JSON');
+  const text = await readText(req, limit.bytes);
+  if (text == null) return fail(413, limit.error);
   let raw: unknown;
   try {
-    raw = await req.json();
+    raw = JSON.parse(text);
   } catch {
     return fail(400, 'JSON non valido');
   }

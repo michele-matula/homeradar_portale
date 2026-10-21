@@ -193,6 +193,8 @@ export interface ListingRecord {
   missingSince: number | null;
   /** Foto di copertina; assente se non nota (mai null: un record senza copertina ha la stessa forma di prima). */
   coverUrl?: string;
+  /** Ultima lettura da un giro (ms): `lastSeenAt` non avanza dentro una visita, questa sì. Assente se mai letto dal server. */
+  lastReadAt?: number;
 }
 
 export type SnapshotSource = 'observed' | 'declared';

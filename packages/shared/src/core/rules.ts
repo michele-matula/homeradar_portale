@@ -28,7 +28,7 @@ interface AgeFacts {
   signal: boolean;
 }
 
-function ageFacts(listing: ListingRecord, settings: Settings, now: number): AgeFacts {
+function ageFacts(listing: ListingRecord, settings: RuleSettings, now: number): AgeFacts {
   const created = listing.portalCreatedAt ?? listing.estimatedCreatedAt;
   const ageEstimated = listing.portalCreatedAt == null;
   const ageDays = created == null ? null : Math.max(0, Math.floor((now - created) / DAY_MS));
@@ -52,7 +52,7 @@ interface DropFacts {
 }
 
 /** Ribassi rispetto al massimo prezzo noto. */
-function dropFacts(listing: ListingRecord, snapshots: PriceSnapshot[], settings: Settings): DropFacts {
+function dropFacts(listing: ListingRecord, snapshots: PriceSnapshot[], settings: RuleSettings): DropFacts {
   const ordered = [...snapshots].sort((a, b) => a.at - b.at);
   const current = listing.currentPrice;
   const known = ordered.map((s) => s.price);
@@ -125,7 +125,10 @@ function compose(target: ListingRecord, age: AgeFacts, drop: DropFacts, group: G
   };
 }
 
-export function evaluate(listing: ListingRecord, snapshots: PriceSnapshot[], settings: Settings, now: number): Evaluation {
+/** Le sole impostazioni che contano per la priorità. */
+export type RuleSettings = Pick<Settings, 'minAgeDays' | 'minDropPercent'>;
+
+export function evaluate(listing: ListingRecord, snapshots: PriceSnapshot[], settings: RuleSettings, now: number): Evaluation {
   return compose(listing, ageFacts(listing, settings, now), dropFacts(listing, snapshots, settings));
 }
 
@@ -143,7 +146,7 @@ const days = (a: AgeFacts) => a.ageDays ?? -1;
  * Età del membro più vecchio tra quelli con il segnale A (altrimenti del più vecchio), ribasso maggiore tra gli annunci vivi.
  * `listingKey` e `portalId` sono quelli di `target`.
  */
-export function evaluateGroup(target: ListingRecord, members: GroupMember[], settings: Settings, now: number): Evaluation {
+export function evaluateGroup(target: ListingRecord, members: GroupMember[], settings: RuleSettings, now: number): Evaluation {
   const ages = members.map((m) => ageFacts(m.listing, settings, now));
   const pool = ages.some((a) => a.signal) ? ages.filter((a) => a.signal) : ages;
   // A parità di giorni vince l'età esatta.

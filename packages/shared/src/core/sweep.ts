@@ -8,7 +8,7 @@ import {
 export const MAX_PAGES_PER_SEARCH = 10;
 export const MAX_PAGES_PER_PORTAL = 60;
 // Build di test (WXT_SWEEP_FAST=1, solo e2e): pause e attese brevi. Mai nella build del pilota.
-const FAST = import.meta.env?.WXT_SWEEP_FAST === '1';
+const FAST = (import.meta as { env?: Record<string, string | undefined> }).env?.WXT_SWEEP_FAST === '1';
 export const PAGE_TIMEOUT_MS = FAST ? 5_000 : 45_000;
 export const PAUSE_MS: Record<Portal, [number, number]> = FAST
   ? { immobiliare: [100, 200], idealista: [100, 200], subito: [100, 200], casadaprivato: [100, 200] }

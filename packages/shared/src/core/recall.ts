@@ -15,18 +15,33 @@ export const RECALL_SHORTCUTS: readonly { label: string; days: number }[] = [
   { label: 'Tra 1 mese', days: 30 },
 ];
 
+// Il giorno dei richiami è quello di Roma anche sul server, che gira in UTC.
+const ROME = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Europe/Rome', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23',
+});
+
+function romeParts(ms: number): { y: number; m: number; d: number; offset: number } {
+  const p = Object.fromEntries(ROME.formatToParts(ms).map((x) => [x.type, Number(x.value)]));
+  const wall = Date.UTC(p.year!, p.month! - 1, p.day!, p.hour!, p.minute!, p.second!);
+  return { y: p.year!, m: p.month!, d: p.day!, offset: wall - Math.floor(ms / 1000) * 1000 };
+}
+
+/** Mezzanotte di Roma del giorno indicato (il mese e il giorno possono traboccare, come in Date.UTC). */
+function romeMidnight(y: number, m: number, d: number): number {
+  const utc = Date.UTC(y, m - 1, d);
+  // A Roma l'ora cambia alle 2 o alle 3: la mezzanotte ha sempre lo scarto del giorno prima di quell'ora.
+  return utc - romeParts(utc - romeParts(utc).offset).offset;
+}
+
 export function startOfLocalDay(ms: number): number {
-  const d = new Date(ms);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  const { y, m, d } = romeParts(ms);
+  return romeMidnight(y, m, d);
 }
 
 /** Giorni di calendario: con l'ora legale un giorno può durare 23 o 25 ore. */
 export function addDays(dayMs: number, n: number): number {
-  const d = new Date(dayMs);
-  d.setDate(d.getDate() + n);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  const { y, m, d } = romeParts(dayMs);
+  return romeMidnight(y, m, d + n);
 }
 
 /** Prossimo ricalcolo del segnale sull'icona: subito dopo la mezzanotte locale. */

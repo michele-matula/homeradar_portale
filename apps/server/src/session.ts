@@ -1,6 +1,6 @@
 import type { Env } from './env';
 import { hashToken, newToken } from './crypto';
-import { fail } from './http';
+import { fail, route, type Handler, type Route } from './http';
 import { findUserById, type UserRow } from './users';
 
 export const SESSION_COOKIE = 'hr_session';
@@ -67,4 +67,19 @@ export async function authenticate(req: Request, env: Env, now: number): Promise
 export async function endSession(req: Request, db: D1Database): Promise<void> {
   const token = sessionToken(req);
   if (token) await db.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await hashToken(token)).run();
+}
+
+/** Rotta per chi ha una sessione (agente o admin): l'handler riceve l'utente e l'istante della richiesta. */
+export function userRoute(
+  method: string, pattern: string, h: (req: Request, env: Env, params: Record<string, string>, ctx: { user: UserRow; now: number }) => Promise<Response>,
+): Route {
+  const wrapped: Handler = async (req, env, params) => {
+    const now = Date.now();
+    const auth = await authenticate(req, env, now);
+    if (auth instanceof Response) return auth;
+    const res = await h(req, env, params, { user: auth.user, now });
+    if (auth.setCookie) res.headers.append('Set-Cookie', auth.setCookie);
+    return res;
+  };
+  return route(method, pattern, wrapped);
 }
