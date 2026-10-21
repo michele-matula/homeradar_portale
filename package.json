@@ -2,10 +2,17 @@
   "name": "homeradar-portale",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "test": "npm test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build -w apps/web"
+  },
+  "allowScripts": {
+    "workerd@1.20261019.1": true,
+    "esbuild@0.28.2": true
   }
 }
