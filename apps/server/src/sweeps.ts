@@ -62,3 +62,6 @@ export async function startSweep(db: D1Database, user: UserRow, deviceId: string
   ]);
   return { sweepId, searches, skipped: specs.length - searches.length };
 }
+
+/** "Non più visto" per una ricerca completa: lo completa il Task 9. */
+export async function maybeApplyMissing(_db: D1Database, _runId: number, _now: number): Promise<void> {}
