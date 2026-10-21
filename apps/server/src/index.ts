@@ -1,7 +1,8 @@
 import type { Env } from './env';
 import { fail, json, route, sameOrigin, type Route } from './http';
+import { authRoutes } from './routes/auth';
 
-const routes: Route[] = [route('GET', '/api/health', async () => json({ ok: true }))];
+const routes: Route[] = [route('GET', '/api/health', async () => json({ ok: true })), ...authRoutes];
 
 async function handleApi(req: Request, env: Env, path: string): Promise<Response> {
   if (req.method !== 'GET' && req.method !== 'HEAD' && !sameOrigin(req)) return fail(403, 'Origine non ammessa');

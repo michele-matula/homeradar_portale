@@ -14,3 +14,8 @@ export function fetchApi(method: string, path: string, body?: unknown, headers: 
 export async function resetDb(): Promise<void> {
   await env.DB.batch(['login_attempts', 'sessions', 'tokens', 'users'].map((t) => env.DB.prepare(`DELETE FROM ${t}`)));
 }
+
+/** "hr_session=…" dall'header Set-Cookie, da rimandare come Cookie. */
+export function cookieFrom(res: Response): string {
+  return (res.headers.get('Set-Cookie') ?? '').split(';')[0] ?? '';
+}
