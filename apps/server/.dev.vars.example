@@ -1,0 +1,2 @@
+# Segreti per `wrangler dev`: copia in .dev.vars (ignorato da git).
+# La tappa 1 non ne usa; le prossime (per esempio la chiave del servizio mail) andranno qui.

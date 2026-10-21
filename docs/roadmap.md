@@ -4,7 +4,7 @@ Architettura: `docs/superpowers/specs/2026-10-21-homeradar-portale-design.md`. U
 
 | # | Tappa | Piano | Stato |
 |---|---|---|---|
-| 1 | Fondamenta e account: monorepo, logica condivisa copiata dall'estensione, Worker con D1, accesso, inviti, reimpostazione password, admin utenti, portale minimo | `docs/superpowers/plans/2026-10-21-portale-01-fondamenta-account.md` | da fare |
+| 1 | Fondamenta e account: monorepo, logica condivisa copiata dall'estensione, Worker con D1, accesso, inviti, reimpostazione password, admin utenti, portale minimo | `docs/superpowers/plans/2026-10-21-portale-01-fondamenta-account.md` | fatto |
 | 2 | Archivio: ingest lato server, piano delle ricerche, `search_runs`, freschezza, "non più visto" con più agenti, lettura dei lead per agente, stati/note/richiami/separazioni, impostazioni dell'agente | da scrivere | da fare |
 | 3 | Connettore: estensione senza interfaccia, collegamento dal portale, giro lanciato dal portale e solo nella scheda del giro, coda d'invio con tentativi | da scrivere | da fare |
 | 4 | Portale: lista e scheda lead, filtri, richiami, esportazione, impostazioni, layout telefono, avanzamento del giro | da scrivere | da fare |
