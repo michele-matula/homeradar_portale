@@ -1,0 +1,981 @@
+{
+ "props": {
+  "pageProps": {
+   "dehydratedState": {
+    "queries": [
+     {
+      "state": {
+       "data": {
+        "count": 815,
+        "currentPage": 1,
+        "results": [
+         {
+          "realEstate": {
+           "id": 133731460,
+           "title": "Trilocale via Esempio 1, Irno - Brignano, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 230000
+           },
+           "properties": [
+            {
+             "surface": "85 m²",
+             "rooms": "3",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 1",
+              "city": "Salerno",
+              "macrozone": "Irno, Fratte, Ogliara",
+              "microzone": "Irno - Brignano"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/1/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/133731460/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 133599684,
+           "title": "Bilocale via Esempio 2, Centro Storico - Teatro Verdi, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 228000
+           },
+           "properties": [
+            {
+             "surface": "57 m²",
+             "rooms": "2",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 2",
+              "city": "Salerno",
+              "macrozone": "Centro Storico, Teatro Verdi, Centro",
+              "microzone": "Centro Storico - Teatro Verdi"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/2/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/133599684/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 133005478,
+           "title": "Appartamento via Esempio 3, Centro Storico - Teatro Verdi, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 1500000
+           },
+           "properties": [
+            {
+             "surface": "120 m²",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 3",
+              "city": "Salerno",
+              "macrozone": "Centro Storico, Teatro Verdi, Centro",
+              "microzone": "Centro Storico - Teatro Verdi"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/3/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/133005478/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 132630002,
+           "title": "Quadrilocale via Esempio 4, Pastena - Pastena Alta, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 185000
+           },
+           "properties": [
+            {
+             "surface": "100 m²",
+             "rooms": "4",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 4",
+              "city": "Salerno",
+              "macrozone": "Pastena, Pastena Alta, Mercatello, Mariconda",
+              "microzone": "Pastena - Pastena Alta"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/4/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/132630002/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 132602350,
+           "title": "Trilocale via Esempio 5, Irno - Brignano, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 280000
+           },
+           "properties": [
+            {
+             "surface": "100 m²",
+             "rooms": "3",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 5",
+              "city": "Salerno",
+              "macrozone": "Irno, Fratte, Ogliara",
+              "microzone": "Irno - Brignano"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/5/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/132602350/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 132373374,
+           "title": "Trilocale via Esempio 6, Carmine, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 220000
+           },
+           "properties": [
+            {
+             "surface": "90 m²",
+             "rooms": "3",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 6",
+              "city": "Salerno",
+              "macrozone": "Carmine, Carmine Alto",
+              "microzone": "Carmine"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/6/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/132373374/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 132168516,
+           "title": "Trilocale via Esempio 7, Zona Industriale - San Leonardo, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 330000
+           },
+           "properties": [
+            {
+             "surface": "71 m²",
+             "rooms": "3",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 7",
+              "city": "Salerno",
+              "macrozone": "Arbostella, Arechi, Zona Industriale, San Leonardo",
+              "microzone": "Zona Industriale - San Leonardo"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/7/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/132168516/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 132054682,
+           "title": "Trilocale via Esempio 8, Irno - Brignano, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 650000
+           },
+           "properties": [
+            {
+             "surface": "90 m²",
+             "rooms": "3",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 8",
+              "city": "Salerno",
+              "macrozone": "Irno, Fratte, Ogliara",
+              "microzone": "Irno - Brignano"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/8/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/132054682/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 132018792,
+           "title": "Trilocale via Esempio 9, Carmine Alto, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 225000
+           },
+           "properties": [
+            {
+             "surface": "104 m²",
+             "rooms": "3",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 9",
+              "city": "Salerno",
+              "macrozone": "Carmine, Carmine Alto",
+              "microzone": "Carmine Alto"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/9/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/132018792/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 131785240,
+           "title": "Bilocale via Esempio 10, Arbostella - Arechi, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 900000
+           },
+           "properties": [
+            {
+             "surface": "95 m²",
+             "rooms": "2",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 10",
+              "city": "Salerno",
+              "macrozone": "Arbostella, Arechi, Zona Industriale, San Leonardo",
+              "microzone": "Arbostella - Arechi"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/10/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/131785240/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 131645422,
+           "title": "Appartamento via Esempio 11, Fratte - Matierno, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 210000
+           },
+           "properties": [
+            {
+             "surface": "50 m²",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 11",
+              "city": "Salerno",
+              "macrozone": "Irno, Fratte, Ogliara",
+              "microzone": "Fratte - Matierno"
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/131645422/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 131120846,
+           "title": "Appartamento via Esempio 12, Irno - Brignano, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 395000
+           },
+           "properties": [
+            {
+             "surface": "127 m²",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 12",
+              "city": "Salerno",
+              "macrozone": "Irno, Fratte, Ogliara",
+              "microzone": "Irno - Brignano"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/12/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/131120846/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 131072800,
+           "title": "Quadrilocale via Esempio 13, Torrione Alto - Sala Abbagnano, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 330000
+           },
+           "properties": [
+            {
+             "surface": "90 m²",
+             "rooms": "4",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 13",
+              "city": "Salerno",
+              "macrozone": "Torrione, Torrione Alto, Sala Abbagnano",
+              "microzone": "Torrione Alto - Sala Abbagnano"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/13/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/131072800/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 131070728,
+           "title": "Trilocale via Esempio 14, Centro, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 550000
+           },
+           "properties": [
+            {
+             "surface": "90 m²",
+             "rooms": "3",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 14",
+              "city": "Salerno",
+              "macrozone": "Centro Storico, Teatro Verdi, Centro",
+              "microzone": "Centro"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/14/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/131070728/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 131071826,
+           "title": "Bilocale via Esempio 15, Irno - Brignano, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 150000
+           },
+           "properties": [
+            {
+             "surface": "30 m²",
+             "rooms": "2",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 15",
+              "city": "Salerno",
+              "macrozone": "Irno, Fratte, Ogliara",
+              "microzone": "Irno - Brignano"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/15/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/131071826/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 131062654,
+           "title": "Appartamento via Esempio 16, Fratte - Matierno, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 199000
+           },
+           "properties": [
+            {
+             "surface": "60 m²",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 16",
+              "city": "Salerno",
+              "macrozone": "Irno, Fratte, Ogliara",
+              "microzone": "Fratte - Matierno"
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/131062654/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 130991240,
+           "title": "Trilocale via Esempio 17, Mercatello - Mariconda, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 170000
+           },
+           "properties": [
+            {
+             "surface": "90 m²",
+             "rooms": "3",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 17",
+              "city": "Salerno",
+              "macrozone": "Pastena, Pastena Alta, Mercatello, Mariconda",
+              "microzone": "Mercatello - Mariconda"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/17/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/130991240/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 130650656,
+           "title": "Trilocale via Esempio 18, Carmine Alto, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 279000
+           },
+           "properties": [
+            {
+             "surface": "86 m²",
+             "rooms": "3",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 18",
+              "city": "Salerno",
+              "macrozone": "Carmine, Carmine Alto",
+              "microzone": "Carmine Alto"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/18/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/130650656/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 130593088,
+           "title": "Quadrilocale via Esempio 19, Fratte - Matierno, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 229000
+           },
+           "properties": [
+            {
+             "surface": "100 m²",
+             "rooms": "4",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 19",
+              "city": "Salerno",
+              "macrozone": "Irno, Fratte, Ogliara",
+              "microzone": "Fratte - Matierno"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/19/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/130593088/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 130235866,
+           "title": "Quadrilocale via Esempio 20, Ogliara, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 169000
+           },
+           "properties": [
+            {
+             "surface": "135 m²",
+             "rooms": "4",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 20",
+              "city": "Salerno",
+              "macrozone": "Irno, Fratte, Ogliara",
+              "microzone": "Ogliara"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/20/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/130235866/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 130197588,
+           "title": "Trilocale via Esempio 21, Carmine Alto, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 340000
+           },
+           "properties": [
+            {
+             "surface": "122 m²",
+             "rooms": "3",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 21",
+              "city": "Salerno",
+              "macrozone": "Carmine, Carmine Alto",
+              "microzone": "Carmine Alto"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/21/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/130197588/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 130155640,
+           "title": "Villa via Esempio 22, Giovi Bartolomeo - Giovi Altimare, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 55000
+           },
+           "properties": [
+            {
+             "surface": "198 m²",
+             "rooms": "5+",
+             "typology": {
+              "name": "Villa unifamiliare"
+             },
+             "location": {
+              "address": "Via Esempio 22",
+              "city": "Salerno",
+              "macrozone": "Casa Manzo, Giovi, Giovi Bartolomeo, Giovi Altimare",
+              "microzone": "Giovi Bartolomeo - Giovi Altimare"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/22/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/130155640/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 130081172,
+           "title": "Monolocale via Esempio 23, Centro Storico - Teatro Verdi, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 95000
+           },
+           "properties": [
+            {
+             "surface": "40 m²",
+             "rooms": "1",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 23",
+              "city": "Salerno",
+              "macrozone": "Centro Storico, Teatro Verdi, Centro",
+              "microzone": "Centro Storico - Teatro Verdi"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/23/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/130081172/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 129860908,
+           "title": "Bilocale via Esempio 24, Carmine, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 310000
+           },
+           "properties": [
+            {
+             "surface": "79 m²",
+             "rooms": "2",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 24",
+              "city": "Salerno",
+              "macrozone": "Carmine, Carmine Alto",
+              "microzone": "Carmine"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/24/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/129860908/"
+          }
+         },
+         {
+          "realEstate": {
+           "id": 129737160,
+           "title": "Bilocale via Esempio 25, Carmine, Salerno",
+           "contract": "sale",
+           "price": {
+            "visible": true,
+            "value": 195000
+           },
+           "properties": [
+            {
+             "surface": "50 m²",
+             "rooms": "2",
+             "typology": {
+              "name": "Appartamento"
+             },
+             "location": {
+              "address": "Via Esempio 25",
+              "city": "Salerno",
+              "macrozone": "Carmine, Carmine Alto",
+              "microzone": "Carmine"
+             },
+             "photo": {
+              "urls": {
+               "small": "https://pwm.im-cdn.it/image/25/xxs-c.jpg"
+              }
+             }
+            }
+           ],
+           "advertiser": {
+            "supervisor": {
+             "type": "user"
+            }
+           }
+          },
+          "seo": {
+           "url": "https://www.immobiliare.it/annunci/129737160/"
+          }
+         }
+        ]
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+}

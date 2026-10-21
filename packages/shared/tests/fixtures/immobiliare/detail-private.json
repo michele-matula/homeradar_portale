@@ -1,0 +1,44 @@
+{
+ "props": {
+  "pageProps": {
+   "detailData": {
+    "realEstate": {
+     "id": 128416572,
+     "title": "Bilocale via Esempio 1, Turro, Milano",
+     "contract": "sale",
+     "createdAt": 1776674880,
+     "price": {
+      "visible": true,
+      "value": 235000,
+      "loweredPrice": {
+       "originalPrice": "€ 249.000",
+       "currentPrice": "€ 235.000",
+       "discountPercentage": "5,6",
+       "date": "21/09/2026"
+      }
+     },
+     "properties": [
+      {
+       "surface": "62 m²",
+       "rooms": "2",
+       "typology": {
+        "name": "Appartamento"
+       },
+       "location": {
+        "address": "Via Esempio 1",
+        "city": "Milano",
+        "macrozone": "Precotto, Turro",
+        "microzone": "Turro"
+       }
+      }
+     ],
+     "advertiser": {
+      "supervisor": {
+       "type": "user"
+      }
+     }
+    }
+   }
+  }
+ }
+}
