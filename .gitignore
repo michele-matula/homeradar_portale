@@ -1,0 +1,7 @@
+node_modules/
+.output/
+dist/
+.wrangler/
+.env
+.dev.vars
+fixtures-raw/
