@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isMissing, MISSING_SWEEPS, missingUpdates } from '@/core/missing';
+import { isMissing, MISSING_MIN_AGE_MS, MISSING_SWEEPS, missingUpdates } from '@/core/missing';
 import type { ListingRecord } from '@/shared/types';
-import { listing } from './backup-builders';
+import { listing, NOW } from './backup-builders';
+
+const HOUR = 3_600_000;
 
 const A = 'immobiliare|comune:016219|case';
 const rec = (o: Partial<ListingRecord>) => listing({ sweepScope: A, missedSweeps: 0, missingSince: null, ...o });
@@ -21,7 +23,15 @@ describe('missingUpdates', () => {
     const l = rec({ missedSweeps: MISSING_SWEEPS - 1, missingSince: 100 });
     const [u] = missingUpdates([l], new Set([A]), new Set(), 500);
     expect(u).toMatchObject({ missedSweeps: MISSING_SWEEPS, missingSince: 100 });
-    expect(isMissing(u!)).toBe(true);
-    expect(isMissing(l)).toBe(false);
+    expect(isMissing(u!, NOW + MISSING_MIN_AGE_MS)).toBe(true);
+    expect(isMissing(l, NOW + MISSING_MIN_AGE_MS)).toBe(false);
+  });
+});
+
+describe('isMissing', () => {
+  it('serve anche non averlo visto da almeno 24 ore', () => {
+    expect(isMissing(rec({ missedSweeps: 3, lastSeenAt: NOW - 23 * HOUR }), NOW)).toBe(false);
+    expect(isMissing(rec({ missedSweeps: 3, lastSeenAt: NOW - 25 * HOUR }), NOW)).toBe(true);
+    expect(isMissing(rec({ missedSweeps: 2, lastSeenAt: 0 }), NOW)).toBe(false);
   });
 });

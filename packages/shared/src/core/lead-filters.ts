@@ -84,6 +84,11 @@ export const OTHER_COMUNI = 'other';
 
 const SCOPE_ISTAT = /\|comune:(\d{6})\|/;
 
+/** Codice ISTAT del comune della ricerca del giro ("immobiliare|comune:016219|case" → "016219"). */
+export function scopeIstat(sweepScope: string | null): string | null {
+  return sweepScope?.match(SCOPE_ISTAT)?.[1] ?? null;
+}
+
 /**
  * Codici ISTAT dei comuni della zona in cui sta il lead (basta una fonte). Vale la città scritta dal portale;
  * se manca o non è un comune della zona, il comune della ricerca del giro che ha trovato l'annuncio.
@@ -94,7 +99,7 @@ export function leadComuni(lead: LeadView, comuni: ComuneRef[]): string[] {
   const found = new Set<string>();
   for (const { city, sweepScope } of [lead.listing, ...lead.others.map((o) => o.listing)]) {
     const named = city != null ? byName.get(normalize(city)) : undefined;
-    const scoped = sweepScope?.match(SCOPE_ISTAT)?.[1];
+    const scoped = scopeIstat(sweepScope);
     const istat = named ?? (scoped != null && inZone.has(scoped) ? scoped : undefined);
     if (istat) found.add(istat);
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildLeadViews, isListed, mergeGroupState } from '@/core/lead-groups';
+import { buildLeadViews, isHidden, isListed, mergeGroupState } from '@/core/lead-groups';
 import { DAY_MS, DEFAULT_SETTINGS, type LeadState, type ListingRecord, type Portal } from '@/shared/types';
 
 const NOW = Date.UTC(2026, 9, 16, 12);
@@ -162,5 +162,30 @@ describe('non più visto', () => {
     const [v] = buildLeadViews(archive([a, b]), DEFAULT_SETTINGS, NOW);
     expect(v!.listing.key).toBe('idealista:2');
     expect(v!).toMatchObject({ missing: null, missingPortals: ['immobiliare'] });
+  });
+});
+
+describe('non più visto da poco', () => {
+  it('tre giri mancati ma visto un\'ora fa: non è ancora "non più visto"', () => {
+    const [v] = buildLeadViews(archive([rec('immobiliare', 1, { missedSweeps: 3, missingSince: 100, lastSeenAt: NOW - 3_600_000 })]), DEFAULT_SETTINGS, NOW);
+    expect(v!.missing).toBeNull();
+  });
+});
+
+describe('isHidden', () => {
+  const old = NOW - 91 * DAY_MS;
+  const view = (o: Partial<LeadState> = {}, others: Partial<ListingRecord> = { lastSeenAt: old }) => {
+    const a = rec('immobiliare', 1, { lastSeenAt: old });
+    const b = rec('idealista', 2, others);
+    return buildLeadViews(archive([a, b], [state(a.key, o), state(b.key, o)]), DEFAULT_SETTINGS, NOW)[0]!;
+  };
+  it('nascosto se nessuna fonte è vista da 90 giorni e il lead non è lavorato', () => {
+    expect(isHidden(view(), NOW)).toBe(true);
+    expect(isHidden(view({}, { lastSeenAt: NOW - 89 * DAY_MS }), NOW)).toBe(false);
+  });
+  it('un lead lavorato resta', () => {
+    expect(isHidden(view({ status: 'contacted' }), NOW)).toBe(false);
+    expect(isHidden(view({ notes: 'x' }), NOW)).toBe(false);
+    expect(isHidden(view({ recallAt: NOW }), NOW)).toBe(false);
   });
 });

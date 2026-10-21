@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyQuery, describeQuery, EMPTY_QUERY, inComuni, inPriceRange, isEmptyQuery, leadComuni, matchesText, normalize, OTHER_COMUNI, parseThousands } from '@/core/lead-filters';
+import { applyQuery, scopeIstat, describeQuery, EMPTY_QUERY, inComuni, inPriceRange, isEmptyQuery, leadComuni, matchesText, normalize, OTHER_COMUNI, parseThousands } from '@/core/lead-filters';
 import type { LeadView } from '@/shared/types';
 
 type ListingFields = Partial<Pick<LeadView['listing'], 'title' | 'address' | 'city' | 'zone' | 'typology' | 'currentPrice'>>;
@@ -182,5 +182,13 @@ describe('leadComuni e inComuni', () => {
     expect(pick([OTHER_COMUNI])).toEqual(['b', 'c']);
     expect(pick(['098031', OTHER_COMUNI])).toEqual(['a', 'b', 'c']);
     expect(pick(['098048'])).toEqual([]);
+  });
+});
+
+describe('scopeIstat', () => {
+  it('codice ISTAT della ricerca del giro', () => {
+    expect(scopeIstat('subito|comune:016219|immobili')).toBe('016219');
+    expect(scopeIstat(null)).toBeNull();
+    expect(scopeIstat('x')).toBeNull();
   });
 });
