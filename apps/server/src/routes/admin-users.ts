@@ -2,7 +2,7 @@ import { CreateUserBody, UpdateUserBody, type AdminUser } from '@homeradar/share
 import { comuneInfo } from '@homeradar/shared/core/comuni';
 import type { Env } from '../env';
 import { fail, json, readBody, route, type Handler, type Route } from '../http';
-import { authenticate, endSessions } from '../session';
+import { authenticate } from '../session';
 import { EmailTaken, findUserById, insertUser, issueToken, listUsers, toComuneRefs, type UserRow } from '../users';
 
 const toAdminUser = (u: UserRow): AdminUser => ({
@@ -94,7 +94,6 @@ export const adminUserRoutes: Route[] = [
     await env.DB.prepare('UPDATE users SET comuni = ?, max_comuni = ?, status = ?, updated_at = ? WHERE id = ?')
       .bind(JSON.stringify(comuni), maxComuni, status, now, u.id)
       .run();
-    if (status === 'suspended') await endSessions(env.DB, u.id);
     return json({ user: toAdminUser((await findUserById(env.DB, u.id))!) });
   }),
 

@@ -13,6 +13,11 @@ const cookie = (value: string, maxAgeS: number) => `${SESSION_COOKIE}=${value}; 
 
 export const clearCookie = (): string => cookie('', 0);
 
+const withClearedCookie = (r: Response): Response => {
+  r.headers.set('Set-Cookie', clearCookie());
+  return r;
+};
+
 /** Nuova sessione: restituisce l'header Set-Cookie. */
 export async function createSession(db: D1Database, userId: string, now: number): Promise<string> {
   const token = newToken();
@@ -41,11 +46,11 @@ export async function authenticate(req: Request, env: Env, now: number): Promise
     .bind(hash, now)
     .first<{ user_id: string; expires_at: number }>();
   const user = s && (await findUserById(env.DB, s.user_id));
-  if (!s || !user) return fail(401, 'Accesso richiesto');
+  if (!s || !user) return withClearedCookie(fail(401, 'Accesso richiesto'));
   if (user.status !== 'active') {
-    const r = fail(403, 'Account sospeso');
-    r.headers.set('Set-Cookie', clearCookie());
-    return r;
+    // La sospensione non cancella le sessioni: la prima richiesta riceve "Account sospeso", poi la sessione si chiude.
+    await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(hash).run();
+    return withClearedCookie(fail(403, 'Account sospeso'));
   }
   let setCookie: string | undefined;
   if (s.expires_at - now < RENEW_BELOW_MS) {
@@ -57,10 +62,6 @@ export async function authenticate(req: Request, env: Env, now: number): Promise
     user.lastSeenAt = now;
   }
   return { user, setCookie };
-}
-
-export async function endSessions(db: D1Database, userId: string): Promise<void> {
-  await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run();
 }
 
 export async function endSession(req: Request, db: D1Database): Promise<void> {

@@ -71,6 +71,21 @@ describe('attivazione', () => {
     expect((await findUserByEmail(env.DB, 'mario@rossi.it'))?.status).toBe('suspended');
   });
 
+  it('due attivazioni simultanee con lo stesso link: ne passa una sola', async () => {
+    const t = await invite('mario@rossi.it');
+    const results = await Promise.all(
+      ['password-uno-1', 'password-due-2'].map((password) => fetchApi('POST', `/api/tokens/${t}`, { password, privacyVersion: PRIVACY_VERSION })),
+    );
+    expect(results.map((r) => r.status).sort()).toEqual([200, 404]);
+    expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM sessions').first<{ n: number }>())?.n).toBe(1);
+  });
+
+  it('una richiesta senza informativa non consuma il link', async () => {
+    const t = await invite('mario@rossi.it');
+    await fetchApi('POST', `/api/tokens/${t}`, { password: PW });
+    expect((await fetchApi('POST', `/api/tokens/${t}`, { password: PW, privacyVersion: PRIVACY_VERSION })).status).toBe(200);
+  });
+
   it('link scaduto', async () => {
     const t = await invite('mario@rossi.it');
     await env.DB.prepare('UPDATE tokens SET expires_at = 1').run();
@@ -99,6 +114,12 @@ describe('accesso', () => {
     const r = await login('mario@rossi.it', PW);
     expect(r.status).toBe(429);
     expect(await r.json()).toEqual({ error: 'Troppi tentativi: riprova fra qualche minuto' });
+  });
+
+  it('tentativi in parallelo: al massimo 5 arrivano alla verifica', async () => {
+    await activate('mario@rossi.it');
+    const results = await Promise.all(Array.from({ length: 12 }, () => login('mario@rossi.it', 'sbagliata!!')));
+    expect(results.filter((r) => r.status !== 429).length).toBeLessThanOrEqual(5);
   });
 
   it('dopo 20 errori dallo stesso IP: 429 solo da quell\'IP', async () => {
@@ -132,7 +153,11 @@ describe('sessione', () => {
     expect(await r.json()).toEqual({ error: 'Accesso richiesto' });
   });
 
-  it('me con un cookie inventato', async () => expect((await me('hr_session=inventato')).status).toBe(401));
+  it('me con un cookie inventato: 401 e cookie cancellato', async () => {
+    const r = await me('hr_session=inventato');
+    expect(r.status).toBe(401);
+    expect(r.headers.get('Set-Cookie')).toMatch(/^hr_session=; .*Max-Age=0/);
+  });
 
   it('sessione scaduta', async () => {
     const c = await activate('mario@rossi.it');

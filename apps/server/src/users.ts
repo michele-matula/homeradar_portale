@@ -93,8 +93,13 @@ export async function readToken(db: D1Database, token: string, now: number): Pro
   return user ? { user, kind: t.kind } : null;
 }
 
-export async function consumeToken(db: D1Database, token: string, now: number): Promise<void> {
-  await db.prepare('UPDATE tokens SET used_at = ? WHERE token_hash = ?').bind(now, await hashToken(token)).run();
+/** Consuma il link se è ancora valido; false se un'altra richiesta l'ha già usato o se è scaduto. */
+export async function claimToken(db: D1Database, token: string, now: number): Promise<boolean> {
+  const r = await db
+    .prepare('UPDATE tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?')
+    .bind(now, await hashToken(token), now)
+    .run();
+  return r.meta.changes === 1;
 }
 
 export function toComuneRefs(istat: string[]): ComuneRef[] {

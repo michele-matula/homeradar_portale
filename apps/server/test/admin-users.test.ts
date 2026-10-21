@@ -100,11 +100,15 @@ describe('regole sui comuni', () => {
 });
 
 describe('stato', () => {
-  it('sospendere chiude le sessioni, riattivare le riapre', async () => {
+  it('sospendere: la sessione aperta riceve "Account sospeso" una volta, poi si chiude; riattivare riapre l\'accesso', async () => {
     const agent = await activeAgent();
     expect((await fetchApi('GET', '/api/me', undefined, as(agent.cookie))).status).toBe(200);
     const r = await call('PATCH', `/api/admin/users/${agent.user.id}`, { status: 'suspended' });
     expect(((await r.json()) as { user: AdminUser }).user.status).toBe('suspended');
+    const me = await fetchApi('GET', '/api/me', undefined, as(agent.cookie));
+    expect(me.status).toBe(403);
+    expect(await me.json()).toEqual({ error: 'Account sospeso' });
+    expect(me.headers.get('Set-Cookie')).toMatch(/^hr_session=; .*Max-Age=0/);
     expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?').bind(agent.user.id).first<{ n: number }>())?.n).toBe(0);
     expect((await fetchApi('POST', '/api/login', { email: 'luca@bianchi.it', password: 'password-lunga' })).status).toBe(403);
     await call('PATCH', `/api/admin/users/${agent.user.id}`, { status: 'active' });

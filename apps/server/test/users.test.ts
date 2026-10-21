@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { hashToken } from '../src/crypto';
-import { consumeToken, EmailTaken, findUserByEmail, findUserById, insertUser, INVITE_TTL_MS, issueToken, readToken, RESET_TTL_MS, toComuneRefs } from '../src/users';
+import { claimToken, EmailTaken, findUserByEmail, findUserById, insertUser, INVITE_TTL_MS, issueToken, readToken, RESET_TTL_MS, toComuneRefs } from '../src/users';
 import { resetDb } from './helpers';
 
 const agent = (email: string) => ({ email, role: 'agent' as const, comuni: ['015059'], maxComuni: 4 });
@@ -34,7 +34,7 @@ describe('token', () => {
     const r = await readToken(env.DB, t, 1);
     expect(r?.kind).toBe('invite');
     expect(r?.user.id).toBe(u.id);
-    await consumeToken(env.DB, t, 2);
+    expect(await claimToken(env.DB, t, 2)).toBe(true);
     expect(await readToken(env.DB, t, 3)).toBeNull();
   });
   it('invito scaduto', async () => {
@@ -55,6 +55,21 @@ describe('token', () => {
     expect(await readToken(env.DB, t1, 2)).toBeNull();
     expect(await readToken(env.DB, t2, 2)).not.toBeNull();
   });
+  it('claimToken consuma il link una sola volta, anche se letto due volte prima', async () => {
+    const u = await insertUser(env.DB, agent('a@b.it'), 0);
+    const t = await issueToken(env.DB, u.id, 'invite', 0);
+    expect(await readToken(env.DB, t, 1)).not.toBeNull();
+    expect(await readToken(env.DB, t, 1)).not.toBeNull();
+    expect(await claimToken(env.DB, t, 2)).toBe(true);
+    expect(await claimToken(env.DB, t, 3)).toBe(false);
+  });
+
+  it('claimToken rifiuta un link scaduto', async () => {
+    const u = await insertUser(env.DB, agent('a@b.it'), 0);
+    const t = await issueToken(env.DB, u.id, 'invite', 0);
+    expect(await claimToken(env.DB, t, INVITE_TTL_MS + 1)).toBe(false);
+  });
+
   it('token sconosciuto', async () => expect(await readToken(env.DB, 'nulla', 0)).toBeNull());
   it('nel database solo l\'hash del token', async () => {
     const u = await insertUser(env.DB, agent('a@b.it'), 0);
