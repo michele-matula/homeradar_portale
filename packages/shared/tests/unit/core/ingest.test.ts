@@ -105,6 +105,13 @@ describe('mergeObservation', () => {
     ]);
   });
 
+  it('una lettura più vecchia dell\'ultima letta, anche dentro la stessa visita, non cambia nulla', () => {
+    const prev = first().record;
+    const later = mergeObservation(prev, obs({ price: 210_000 }), ctx({ at: NOW + 25 * 60_000 }), 200_000)!.record;
+    expect(later).toMatchObject({ lastSeenAt: NOW, lastReadAt: NOW + 25 * 60_000, currentPrice: 210_000 });
+    expect(mergeObservation(later, obs({ price: 200_000 }), ctx({ at: NOW + 10 * 60_000 }), 210_000)).toBeNull();
+  });
+
   it('una lettura più vecchia di quella salvata non cambia nulla', () => {
     const prev = first().record;
     expect(mergeObservation(prev, obs({ price: 150_000 }), ctx({ at: NOW - 3_600_000 }), 200_000)).toBeNull();

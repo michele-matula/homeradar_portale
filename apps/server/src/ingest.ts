@@ -84,8 +84,10 @@ export async function ingestBatch(db: D1Database, user: UserRow, deviceId: strin
     writes.push(db.prepare('INSERT OR IGNORE INTO run_seen (run_id, listing_key) VALUES (?, ?)').bind(run.id, listingKey(o.portal, o.portalId)));
   }
   writes.push(
-    db.prepare(`UPDATE search_runs SET pages_received = pages_received + 1, privates = privates + ?,
-      status = CASE WHEN status = 'pending' THEN 'running' ELSE status END, started_at = COALESCE(started_at, ?) WHERE id = ?`).bind(b.report.privates, at, run.id),
+    // Pagine distinte: una pagina riletta dopo un errore non conta come una pagina in più.
+    db.prepare('INSERT OR IGNORE INTO run_pages (run_id, page) VALUES (?, ?)').bind(run.id, b.page),
+    db.prepare(`UPDATE search_runs SET pages_received = (SELECT COUNT(*) FROM run_pages WHERE run_id = ?1), privates = privates + ?2,
+      status = CASE WHEN status = 'pending' THEN 'running' ELSE status END, started_at = COALESCE(started_at, ?3) WHERE id = ?1`).bind(run.id, b.report.privates, at),
     db.prepare('UPDATE sweeps SET last_activity_at = ?, drops = drops + ? WHERE id = ?').bind(now, drops, b.sweepId),
   );
   try {

@@ -106,6 +106,13 @@ describe('POST /connector/sweeps', () => {
     expect(Object.keys(JSON.parse(text)).sort()).toEqual(['searches', 'skipped', 'sweepId']);
   });
 
+
+  it('due avvii nello stesso istante da due computer: ne parte uno solo', async () => {
+    const other = await linkDevice(a.id);
+    const rs = await Promise.all([start(a), start({ auth: other.auth })]);
+    expect(rs.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sweeps WHERE user_id = ? AND finished_at IS NULL').bind(a.id).first('n')).toBe(1);
+  });
   it('un giro alla volta: altro computer 409, giro fermo da 16 minuti o stesso computer si chiude', async () => {
     const other = await linkDevice(a.id);
     const first = (await (await start(a)).json()) as SweepPlan;

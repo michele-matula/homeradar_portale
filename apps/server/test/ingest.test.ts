@@ -1,10 +1,10 @@
-import { env } from 'cloudflare:workers';
+import { env, exports } from 'cloudflare:workers';
 import type { SweepPlan } from '@homeradar/shared/api/connector';
 import { DEFAULT_CALIBRATION, LEARN_RATE_PER_DAY, mergeCalibration, utcDay } from '@homeradar/shared/core/age';
 import { DAY_MS, type ListingObservation, type Portal } from '@homeradar/shared/shared/types';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { listingsByKeys } from '../src/archive';
-import { fetchConnector, linkDevice, loginAs, putListing, resetDb } from './helpers';
+import { ORIGIN, fetchConnector, linkDevice, loginAs, putListing, resetDb } from './helpers';
 
 const HOUR = 3_600_000;
 
@@ -29,7 +29,7 @@ function batch(a: Agent, observations: unknown[], o: Record<string, unknown> = {
   const portal = (o.portal as Portal | undefined) ?? 'immobiliare';
   delete o.portal;
   return {
-    id: crypto.randomUUID(), sweepId: a.plan.sweepId, searchKey: keyOf(a, portal), readAt: Date.now(),
+    id: crypto.randomUUID(), sweepId: a.plan.sweepId, searchKey: keyOf(a, portal), readAt: Date.now(), page: 1,
     report: { portal, url: 'https://www.immobiliare.it/vendita-case/treviglio/', results: 25, privates: observations.length, lastPage: false, blocked: false, notFound: false, parseErrors: 0 },
     observations, ...o,
   };
@@ -83,6 +83,16 @@ describe('POST /connector/batches', () => {
     expect(await n('SELECT COUNT(*) AS n FROM run_seen WHERE listing_key = ?', 'immobiliare:1')).toBe(1);
   });
 
+
+  it('un lotto in ritardo dentro la stessa visita di 30 minuti non riporta indietro il prezzo', async () => {
+    await env.DB.prepare('UPDATE sweeps SET started_at = ? WHERE id = ?').bind(Date.now() - 2 * HOUR, a.plan.sweepId).run();
+    const t0 = Date.now() - 30 * 60_000;
+    await putListing({ portal: 'immobiliare', portalId: 1, currentPrice: 200_000, lastSeenAt: t0 });
+    await send(a, batch(a, [obs(1, { price: 210_000 })], { readAt: t0 + 25 * 60_000 }));
+    await send(a, batch(a, [obs(1, { price: 200_000 })], { readAt: t0 + 10 * 60_000, page: 2 }));
+    expect((await listingsByKeys(env.DB, ['immobiliare:1']))[0]).toMatchObject({ currentPrice: 210_000, lastSeenAt: t0 });
+    expect(await n('SELECT drops AS n FROM sweeps WHERE id = ?', a.plan.sweepId)).toBe(0);
+  });
   it('un giro già chiuso accetta ancora i lotti', async () => {
     await env.DB.prepare("UPDATE sweeps SET finished_at = ?, outcome = 'completed' WHERE id = ?").bind(Date.now(), a.plan.sweepId).run();
     expect((await send(a, batch(a, [obs(1)]))).status).toBe(200);
@@ -114,6 +124,13 @@ describe('POST /connector/batches', () => {
     const big = await send(a, { ...batch(a, []), pad: 'x'.repeat(600_000) });
     expect(big.status).toBe(413);
     expect(await big.json()).toEqual({ error: 'Lotto troppo grande' });
+    // Senza Content-Length (corpo a pezzi) il limite vale lo stesso.
+    const text = new TextEncoder().encode(JSON.stringify({ ...batch(a, []), pad: 'x'.repeat(600_000) }));
+    const chunked = new ReadableStream({ start(c) { c.enqueue(text.slice(0, 1000)); c.enqueue(text.slice(1000)); c.close(); } });
+    const streamed = await exports.default.fetch(`${ORIGIN}/connector/batches`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...a.auth }, body: chunked, duplex: 'half',
+    } as RequestInit);
+    expect(streamed.status).toBe(413);
     const now = Date.now();
     await env.DB.batch(Array.from({ length: 30 }, () => env.DB.prepare('INSERT INTO batches (id, device_id, received_at) VALUES (?, ?, ?)').bind(crypto.randomUUID(), a.deviceId, now)));
     const r = await send(a, batch(a, [obs(1)]));

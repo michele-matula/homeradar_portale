@@ -8,7 +8,7 @@ const OBS = {
 };
 const REPORT = { portal: 'immobiliare', url: 'https://www.immobiliare.it/vendita-case/treviglio/', results: 25, privates: 3, lastPage: false, blocked: false, notFound: false, parseErrors: 0 };
 const batch = (o: Record<string, unknown> = {}) => ({
-  id: crypto.randomUUID(), sweepId: crypto.randomUUID(), searchKey: 'immobiliare|comune:016219|case', readAt: 1, report: REPORT, observations: [OBS], ...o,
+  id: crypto.randomUUID(), sweepId: crypto.randomUUID(), searchKey: 'immobiliare|comune:016219|case', readAt: 1, page: 1, report: REPORT, observations: [OBS], ...o,
 });
 const message = (r: { error?: { issues: { message: string }[] } }) => r.error?.issues[0]?.message;
 

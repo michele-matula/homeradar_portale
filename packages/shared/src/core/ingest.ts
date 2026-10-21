@@ -31,11 +31,12 @@ function resolveDrop(drop: ObservedPriceDrop | null, prev: PriceDrop | null, at:
 
 /**
  * Unisce un'osservazione di un privato all'annuncio salvato. `lastPrice` è il prezzo dell'ultimo snapshot.
- * null se la lettura è più vecchia dell'ultimo avvistamento (lotto arrivato in ritardo): l'archivio sa già di più.
+ * null se la lettura è più vecchia dell'ultima lettura salvata (lotto arrivato in ritardo): l'archivio sa già di più.
+ * Vale anche dentro una visita, dove `lastSeenAt` resta fermo: per questo il confronto è con `lastReadAt`.
  */
 export function mergeObservation(prev: ListingRecord | null, o: ListingObservation, ctx: IngestContext, lastPrice: number | null): Merged | null {
   const { at } = ctx;
-  if (prev && at < prev.lastSeenAt) return null;
+  if (prev && at < (prev.lastReadAt ?? prev.lastSeenAt)) return null;
   const key = listingKey(o.portal, o.portalId);
   const drop = resolveDrop(o.lastDrop, prev?.lastDrop ?? null, at);
   const priceDropped = prev?.currentPrice != null && o.price != null && o.price < prev.currentPrice;
@@ -70,6 +71,7 @@ export function mergeObservation(prev: ListingRecord | null, o: ListingObservati
   // La copertina si scrive solo se nota: una lettura senza foto non cancella quella salvata.
   const cover = o.coverUrl ?? prev?.coverUrl;
   if (cover) record.coverUrl = cover;
+  record.lastReadAt = at;
 
   const snapshots: Omit<PriceSnapshot, 'id'>[] = [];
   if (drop) {

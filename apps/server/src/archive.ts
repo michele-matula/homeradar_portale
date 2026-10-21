@@ -28,6 +28,7 @@ interface DbListing {
   missed_sweeps: number;
   missing_since: number | null;
   cover_url: string | null;
+  last_read_at: number | null;
 }
 
 export function rowToListing(r: DbListing): ListingRecord {
@@ -56,13 +57,14 @@ export function rowToListing(r: DbListing): ListingRecord {
     missingSince: r.missing_since,
   };
   if (r.cover_url) l.coverUrl = r.cover_url;
+  if (r.last_read_at != null) l.lastReadAt = r.last_read_at;
   return l;
 }
 
 const LISTING_COLUMNS = [
   'key', 'portal', 'portal_id', 'url', 'title', 'address', 'city', 'city_norm', 'zone', 'typology', 'category', 'surface_m2', 'rooms',
   'current_price', 'portal_created_at', 'estimated_created_at', 'last_drop', 'first_seen_at', 'last_seen_at', 'seen_count', 'sweep_scope',
-  'scope_istat', 'missed_sweeps', 'missing_since', 'cover_url',
+  'scope_istat', 'missed_sweeps', 'missing_since', 'cover_url', 'last_read_at',
 ];
 const UPSERT_LISTING = `INSERT INTO listings (${LISTING_COLUMNS.join(', ')}) VALUES (${LISTING_COLUMNS.map(() => '?').join(', ')})
   ON CONFLICT(key) DO UPDATE SET ${LISTING_COLUMNS.slice(1).map((c) => `${c} = excluded.${c}`).join(', ')}`;
@@ -71,7 +73,7 @@ export function upsertListing(db: D1Database, l: ListingRecord): D1PreparedState
   return db.prepare(UPSERT_LISTING).bind(
     l.key, l.portal, l.portalId, l.url, l.title, l.address, l.city, l.city == null ? null : normalize(l.city), l.zone, l.typology, l.category,
     l.surfaceM2, l.rooms, l.currentPrice, l.portalCreatedAt, l.estimatedCreatedAt, l.lastDrop ? JSON.stringify(l.lastDrop) : null,
-    l.firstSeenAt, l.lastSeenAt, l.seenCount, l.sweepScope, scopeIstat(l.sweepScope), l.missedSweeps, l.missingSince, l.coverUrl ?? null,
+    l.firstSeenAt, l.lastSeenAt, l.seenCount, l.sweepScope, scopeIstat(l.sweepScope), l.missedSweeps, l.missingSince, l.coverUrl ?? null, l.lastReadAt ?? null,
   );
 }
 

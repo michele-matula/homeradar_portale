@@ -15,9 +15,8 @@ export const connectorRoutes: Route[] = [
   }),
 
   deviceRoute('POST', '/connector/batches', async (req, env, _p, { user, deviceId, now }) => {
-    // Prima di leggere il corpo: un lotto enorme non si carica in memoria.
-    if (Number(req.headers.get('Content-Length') ?? 0) > MAX_BATCH_BYTES) return fail(413, 'Lotto troppo grande');
-    const body = await readBody(req, BatchBody);
+    // Il limite si conta leggendo il corpo: un lotto enorme non si carica in memoria.
+    const body = await readBody(req, BatchBody, { bytes: MAX_BATCH_BYTES, error: 'Lotto troppo grande' });
     if (body instanceof Response) return body;
     return ingestBatch(env.DB, user, deviceId, body, now);
   }),

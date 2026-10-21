@@ -71,19 +71,21 @@ export const PageReportSchema = body({
 const Uuid = (what: string) => z.uuid({ error: `${what} non valido` });
 const SearchKey = z.string({ error: 'Ricerca non valida' }).min(1, { error: 'Ricerca non valida' }).max(200, { error: 'Ricerca non valida' });
 
+const PAGES_ERROR = { error: 'Numero di pagine non valido' };
 export const BatchBody = body({
   id: Uuid('Id del lotto'),
   sweepId: Uuid('Id del giro'),
   searchKey: SearchKey,
   /** Quando il connettore ha letto la pagina: il lotto può arrivare molto dopo. */
   readAt: z.number({ error: 'Data di lettura non valida' }).int({ error: 'Data di lettura non valida' }),
+  /** Numero della pagina nella ricerca (1, 2, …): una pagina riletta non conta come una pagina in più. */
+  page: z.number(PAGES_ERROR).int(PAGES_ERROR).min(1, PAGES_ERROR).max(MAX_PAGES_PER_SEARCH, PAGES_ERROR),
   report: PageReportSchema,
   observations: z.array(ObservationSchema, INVALID).max(MAX_BATCH_OBSERVATIONS, { error: `Al massimo ${MAX_BATCH_OBSERVATIONS} annunci per lotto` }),
   /** ID più alto di una pagina ordinata per data: candidato punto di calibrazione. */
   newestId: z.number({ error: 'Id non valido' }).int({ error: 'Id non valido' }).positive({ error: 'Id non valido' }).optional(),
 });
 
-const PAGES_ERROR = { error: 'Numero di pagine non valido' };
 export const RunBody = body({
   sweepId: Uuid('Id del giro'),
   searchKey: SearchKey,

@@ -26,7 +26,7 @@ function obs(portalId: number): ListingObservation {
 }
 const batch = (a: Agent, sweepId: string, ids: number[], o: Record<string, unknown> = {}) =>
   fetchConnector('POST', '/connector/batches', {
-    id: crypto.randomUUID(), sweepId, searchKey: KEY, readAt: Date.now(),
+    id: crypto.randomUUID(), sweepId, searchKey: KEY, readAt: Date.now(), page: 1,
     report: { portal: 'immobiliare', url: 'https://www.immobiliare.it/', results: ids.length, privates: ids.length, lastPage: true, blocked: false, notFound: false, parseErrors: 0 },
     observations: ids.map(obs), ...o,
   }, a.auth);
@@ -95,7 +95,7 @@ describe('"non più visto" con più agenti', () => {
     await batch(a, plan.sweepId!, [50]);
     await report(a, plan.sweepId!, 'complete', 2);
     expect(await missed(y.key)).toBe(0);
-    await batch(a, plan.sweepId!, [1]);
+    await batch(a, plan.sweepId!, [1], { page: 2 });
     expect(await missed(x.key)).toBe(0);
     expect(await missed(y.key)).toBe(1);
   });
@@ -112,6 +112,28 @@ describe('"non più visto" con più agenti', () => {
     expect(await missed(x.key)).toBe(0);
   });
 
+
+  it('una pagina riletta conta una volta: si aspettano pagine diverse', async () => {
+    const y = await putListing({ portal: 'immobiliare', portalId: 2, sweepScope: KEY, lastSeenAt: Date.now() - 30 * HOUR });
+    const plan = await start(a);
+    await batch(a, plan.sweepId!, [50]);
+    await batch(a, plan.sweepId!, [50]);
+    await report(a, plan.sweepId!, 'complete', 2);
+    expect(await missed(y.key)).toBe(0);
+    await batch(a, plan.sweepId!, [2], { page: 2 });
+    expect(await missed(y.key)).toBe(0);
+  });
+
+  it('visto da un altro agente nella stessa visita di 30 minuti: non è mancato', async () => {
+    const x = await putListing({ portal: 'immobiliare', portalId: 1, sweepScope: KEY, lastSeenAt: Date.now() - 30 * HOUR });
+    const pa = await start(a);
+    await env.DB.prepare('UPDATE sweeps SET started_at = ? WHERE id = ?').bind(Date.now() - 20 * 60_000, pa.sweepId).run();
+    await batch(a, pa.sweepId!, [50], { readAt: Date.now() - 20 * 60_000 });
+    // B lo vede due volte a pochi minuti: lastSeenAt resta alla prima, ma l'ultima lettura è dopo l'inizio di A.
+    await env.DB.prepare('UPDATE listings SET last_seen_at = ?, last_read_at = ? WHERE key = ?').bind(Date.now() - 25 * 60_000, Date.now() - 5 * 60_000, x.key).run();
+    await report(a, pa.sweepId!, 'complete');
+    expect(await missed(x.key)).toBe(0);
+  });
   it('un esito ripetuto conta una volta', async () => {
     const x = await putListing({ portal: 'immobiliare', portalId: 1, sweepScope: KEY, lastSeenAt: Date.now() - 30 * HOUR });
     const id = await completeRun(a);

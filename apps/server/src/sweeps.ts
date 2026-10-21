@@ -133,12 +133,18 @@ export async function startSweep(db: D1Database, user: UserRow, deviceId: string
   if (!searches.length) return { sweepId: null, searches: [], skipped: specs.length };
 
   const sweepId = crypto.randomUUID();
-  await db.batch([
-    db.prepare('INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at) VALUES (?, ?, ?, ?, ?)').bind(sweepId, user.id, deviceId, now, now),
-    ...searches.map((s) =>
-      db.prepare("INSERT INTO search_runs (sweep_id, search_key, portal, spec, user_id, status) VALUES (?, ?, ?, ?, ?, 'pending')").bind(sweepId, s.key, s.portal, JSON.stringify(s), user.id),
-    ),
-  ]);
+  try {
+    await db.batch([
+      db.prepare('INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at) VALUES (?, ?, ?, ?, ?)').bind(sweepId, user.id, deviceId, now, now),
+      ...searches.map((s) =>
+        db.prepare("INSERT INTO search_runs (sweep_id, search_key, portal, spec, user_id, status) VALUES (?, ?, ?, ?, ?, 'pending')").bind(sweepId, s.key, s.portal, JSON.stringify(s), user.id),
+      ),
+    ]);
+  } catch (e) {
+    // Due avvii nello stesso istante: l'indice sweeps_one_open lascia passare solo il primo.
+    if (e instanceof Error && /UNIQUE constraint failed: sweeps\.user_id/.test(e.message)) return fail(409, 'Giro già in corso su un altro computer');
+    throw e;
+  }
   return { sweepId, searches, skipped: specs.length - searches.length };
 }
 
@@ -176,7 +182,7 @@ export async function maybeApplyMissing(db: D1Database, runId: number, _now: num
   if (claim.meta.changes !== 1) return;
   const { results } = await db
     .prepare(`UPDATE listings SET missed_sweeps = missed_sweeps + 1, missing_since = COALESCE(missing_since, ?1)
-      WHERE sweep_scope = ?2 AND last_seen_at < ?1 AND key NOT IN (SELECT listing_key FROM run_seen WHERE run_id = ?3) RETURNING missed_sweeps`)
+      WHERE sweep_scope = ?2 AND COALESCE(last_read_at, last_seen_at) < ?1 AND key NOT IN (SELECT listing_key FROM run_seen WHERE run_id = ?3) RETURNING missed_sweeps`)
     .bind(run.started_at, run.search_key, runId)
     .all<{ missed_sweeps: number }>();
   const gone = results.filter((r) => r.missed_sweeps === MISSING_SWEEPS).length;
