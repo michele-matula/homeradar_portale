@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
-import { CreateUserBody, LoginBody, normalizeEmail, PASSWORD_TOO_SHORT, TokenBody, UpdateUserBody } from '@/api/types';
+import { AgentSettingsBody, CreateUserBody, LeadStateBody, LoginBody, normalizeEmail, PASSWORD_TOO_SHORT, TokenBody, UpdateUserBody } from '@/api/types';
 
 const PW = 'x'.repeat(10);
 
@@ -34,5 +34,25 @@ describe('schemi delle API', () => {
       [TokenBody, { password: PW, privacyVersion: 'uno' }, 'Versione dell\'informativa non valida'],
     ];
     for (const [schema, input, message] of cases) expect(schema.safeParse(input).error?.issues[0]?.message).toBe(message);
+  });
+});
+
+describe('impostazioni e lead', () => {
+  const msg = (r: { error?: { issues: { message: string }[] } }) => r.error?.issues[0]?.message;
+  it('impostazioni dell\'agente', () => {
+    for (const v of [0, 3651, 1.5]) expect(msg(AgentSettingsBody.safeParse({ minAgeDays: v }))).toBe('Soglia giorni non valida');
+    for (const v of [-1, 101]) expect(msg(AgentSettingsBody.safeParse({ minDropPercent: v }))).toBe('Ribasso minimo non valido');
+    expect(msg(AgentSettingsBody.safeParse({ categories: [] }))).toBe('Scegli almeno una categoria');
+    expect(AgentSettingsBody.safeParse({ categories: ['castelli'] }).success).toBe(false);
+    expect(AgentSettingsBody.parse({ enabledPortals: { subito: false } })).toEqual({ enabledPortals: { subito: false } });
+  });
+  it('stato dei lead', () => {
+    const key = 'immobiliare:1';
+    expect(LeadStateBody.safeParse({ keys: [key], status: 'contacted' }).success).toBe(true);
+    expect(LeadStateBody.safeParse({ keys: [] }).success).toBe(false);
+    expect(LeadStateBody.safeParse({ keys: Array(51).fill(key) }).success).toBe(false);
+    expect(msg(LeadStateBody.safeParse({ keys: ['foo:1'] }))).toBe('Annuncio non valido');
+    expect(LeadStateBody.safeParse({ keys: [key], notes: 'x'.repeat(2001) }).success).toBe(false);
+    expect(LeadStateBody.safeParse({ keys: [key], recallAt: null }).success).toBe(true);
   });
 });
