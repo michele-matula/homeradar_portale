@@ -3,6 +3,7 @@ import { fail, json, readBody, type Route } from '../http';
 import { agentLeads, dueRecallCount, setLeadState, splitLead } from '../leads';
 import { userRoute } from '../session';
 import { getSettings, saveSettings } from '../settings';
+import { sweepStatus } from '../sweeps';
 
 /** Rotte dell'agente: lead, impostazioni, giro. Ogni dato privato è quello dell'utente della sessione. */
 export const leadRoutes: Route[] = [
@@ -33,4 +34,6 @@ export const leadRoutes: Route[] = [
     const s = await saveSettings(env.DB, user.id, body, now);
     return typeof s === 'string' ? fail(400, s) : json(s);
   }),
+
+  userRoute('GET', '/api/sweep', async (_req, env, _p, { user, now }) => json(await sweepStatus(env.DB, user, now))),
 ];
