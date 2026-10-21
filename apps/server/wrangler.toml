@@ -5,8 +5,7 @@ compatibility_date = "2026-10-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "homeradar-portale"
-# Provvisorio: si sostituisce con l'id stampato da `wrangler d1 create` (docs/deploy.md).
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "d14cc556-94b1-4149-a6f4-190ab50dd2aa"
 migrations_dir = "migrations"
 
 [assets]
