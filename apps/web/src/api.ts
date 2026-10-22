@@ -8,7 +8,7 @@ export class ApiError extends Error {
 }
 
 /** Unico punto che parla col server: JSON in andata e ritorno, errori come ApiError col messaggio del server. */
-export async function api<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
+export async function api<T>(method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(path, {

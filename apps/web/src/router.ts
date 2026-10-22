@@ -33,3 +33,16 @@ export function linkProps(path: string) {
     },
   };
 }
+
+export const leadPath = (key: string): string => `/lead/${encodeURIComponent(key)}`;
+
+/** Chiave del lead aperto in `/lead/<chiave>`; null se il percorso non è una scheda o non si decodifica. */
+export function leadKeyOf(path: string): string | null {
+  const m = /^\/lead\/([^/]+)$/.exec(path);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]!);
+  } catch {
+    return null;
+  }
+}

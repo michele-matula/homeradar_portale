@@ -21,8 +21,7 @@ describe('accesso', () => {
     renderAt('/accedi');
     await screen.findByRole('button', { name: 'Accedi' });
     fillLogin('mario@rossi.it', 'password-lunga');
-    expect(await screen.findByText('Ciao mario@rossi.it')).toBeTruthy();
-    expect(screen.getByText('Treviglio (BG)')).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Impostazioni' })).toBeTruthy();
     expect(window.location.pathname).toBe('/');
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ email: 'mario@rossi.it', password: 'password-lunga' });
   });
@@ -38,7 +37,7 @@ describe('accesso', () => {
   it('utente già collegato su /accedi va alla home', async () => {
     mockApi({ 'GET /api/me': { status: 200, body: { user: AGENT } } });
     renderAt('/accedi');
-    expect(await screen.findByText('Ciao mario@rossi.it')).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Impostazioni' })).toBeTruthy();
   });
 
   it('esci', async () => {
@@ -52,7 +51,7 @@ describe('accesso', () => {
   it('l\'agente non vede il link Utenti', async () => {
     mockApi({ 'GET /api/me': { status: 200, body: { user: AGENT } } });
     renderAt('/');
-    await screen.findByText('Ciao mario@rossi.it');
+    await screen.findByRole('link', { name: 'Impostazioni' });
     expect(screen.queryByRole('link', { name: 'Utenti' })).toBeNull();
   });
 });

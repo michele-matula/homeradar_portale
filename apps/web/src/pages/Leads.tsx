@@ -5,7 +5,7 @@ import { Layout } from '../components/Layout';
 import { Sweep } from '../components/Sweep';
 import type { ConnectorPort } from '../connector';
 
-export function Home({ me, onSignOut, connector }: { me: Me; onSignOut(): void; connector?: ConnectorPort }) {
+export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void; connector?: ConnectorPort }) {
   // Cresce a ogni collegamento del connettore: la lista dei computer si rilegge.
   const [linked, setLinked] = useState(0);
   return (
