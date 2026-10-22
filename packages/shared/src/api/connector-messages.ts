@@ -3,7 +3,7 @@ import { z } from 'zod';
 // Messaggi fra il portale (pagina) e il connettore (estensione): `chrome.runtime.sendMessage(CONNECTOR_ID, …)`.
 
 /** ID fisso dell'estensione, ricavato dalla chiave pubblica del manifest (`apps/connector/src/key.ts`). */
-export const CONNECTOR_ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+export const CONNECTOR_ID = 'jojmcoiibegdcgafonhdkdkkdoiaeapc';
 
 export const NOT_LINKED = 'Connettore non collegato';
 
