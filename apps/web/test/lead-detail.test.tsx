@@ -102,6 +102,75 @@ describe('scheda del lead', () => {
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ key: 'idealista:2', fromKeys: ['immobiliare:1'] });
   });
 
+  /** Come `mockApi`, ma le PATCH e le POST rispondono quando il test le libera (in ordine di partenza). */
+  function slowWrites(): { bodies: unknown[]; release(i: number, status: number, body?: unknown): Promise<void> } {
+    const base = routes();
+    const bodies: unknown[] = [];
+    const waiting: ((r: Response) => void)[] = [];
+    vi.stubGlobal('fetch', (input: string, init: RequestInit = {}) => {
+      const method = init.method ?? 'GET';
+      if (method === 'GET') {
+        const r = base[`GET ${input}`] as { status: number; body?: unknown };
+        return Promise.resolve(new Response(JSON.stringify(r.body), { status: r.status, headers: { 'Content-Type': 'application/json' } }));
+      }
+      bodies.push(JSON.parse(String(init.body)));
+      return new Promise<Response>((resolve) => waiting.push(resolve));
+    });
+    return {
+      bodies,
+      async release(i, status, body) {
+        await act(async () => {
+          waiting[i]!(new Response(body === undefined ? null : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }));
+        });
+      },
+    };
+  }
+
+  it("due salvataggi ravvicinati: vince l'ultimo partito anche se risponde prima", async () => {
+    const w = slowWrites();
+    renderAt('/lead/immobiliare%3A1');
+    await screen.findByRole('region', { name: 'Scheda del lead' });
+    const d = within(detail());
+    const notes = d.getByRole('textbox', { name: 'Note' });
+    fireEvent.change(notes, { target: { value: 'richiamare' } });
+    fireEvent.blur(notes);
+    fireEvent.change(d.getByRole('combobox', { name: 'Stato' }), { target: { value: 'contacted' } });
+    await vi.waitFor(() => expect(w.bodies).toHaveLength(2));
+    await w.release(1, 200, { state: saved({ status: 'contacted', notes: 'richiamare' }) });
+    await w.release(0, 200, { state: saved({ notes: 'richiamare' }) });
+    expect((d.getByRole('combobox', { name: 'Stato' }) as HTMLSelectElement).value).toBe('contacted');
+  });
+
+  it("se l'ultimo salvataggio fallisce si vede l'errore e lo stato a video non torna indietro", async () => {
+    const w = slowWrites();
+    renderAt('/lead/immobiliare%3A1');
+    await screen.findByRole('region', { name: 'Scheda del lead' });
+    const d = within(detail());
+    fireEvent.change(d.getByRole('combobox', { name: 'Stato' }), { target: { value: 'contacted' } });
+    await vi.waitFor(() => expect(w.bodies).toHaveLength(1));
+    await w.release(0, 200, { state: saved({ status: 'contacted' }) });
+    fireEvent.change(d.getByRole('combobox', { name: 'Stato' }), { target: { value: 'discarded' } });
+    const notes = d.getByRole('textbox', { name: 'Note' });
+    fireEvent.change(notes, { target: { value: 'x' } });
+    fireEvent.blur(notes);
+    await vi.waitFor(() => expect(w.bodies).toHaveLength(3));
+    await w.release(2, 500, { error: 'Errore del server' });
+    await w.release(1, 200, { state: saved({ status: 'new' }) });
+    expect(d.getByRole('alert').textContent).toBe('Errore del server');
+    expect((d.getByRole('combobox', { name: 'Stato' }) as HTMLSelectElement).value).toBe('contacted');
+  });
+
+  it('Separa non parte due volte', async () => {
+    const w = slowWrites();
+    renderAt('/lead/immobiliare%3A1');
+    await screen.findByRole('region', { name: 'Scheda del lead' });
+    const button = within(detail()).getByRole('button', { name: 'Separa annuncio precedente Idealista' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await vi.waitFor(() => expect(w.bodies).toHaveLength(1));
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('lead non in lista', async () => {
     mockApi(routes());
     renderAt('/lead/subito%3A999');
