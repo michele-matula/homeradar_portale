@@ -1,5 +1,6 @@
 .output/
 .output-e2e/
+.output-store/
 .wxt/
 test-results/
 playwright-report/

@@ -52,6 +52,16 @@ Il connettore (`apps/connector`) è un'estensione che si costruisce per un porta
 
 L'ID dell'estensione è fisso (chiave pubblica in `apps/connector/src/key.ts`, ID in `CONNECTOR_ID`): il portale lo usa per parlarle. Alla pubblicazione sul Web Store (non in elenco) si sostituiscono chiave e ID con quelli che dà il Web Store.
 
+### Pacchetto per lo Store
+
+Per il Chrome Web Store (non in elenco) il manifest non deve avere `key` e la build va in una cartella sua, così non tocca `.output` (quella che si carica non pacchettizzata):
+
+```bash
+WXT_STORE=1 WXT_PORTAL_URL=https://homeradar-portale.<account>.workers.dev npm run zip -w apps/connector
+```
+
+Lo zip è in `apps/connector/.output-store/`. Testi della scheda, permessi, privacy e istruzioni per i revisori: `docs/web-store.md`.
+
 In locale: SPA compilata e `npx wrangler dev`, poi `WXT_PORTAL_URL=http://localhost:8787 npm run build -w apps/connector`. Apri il portale da `http://localhost:8787`: i messaggi arrivano al connettore solo da quell'origine (non da :5173).
 
 Test end-to-end del connettore: `npm run test:e2e -w apps/connector` (costruisce la versione di prova in `.output-e2e`, con tempi brevissimi e portale finto su `localhost:8799`: non va mai caricata in Chrome per lavorare).

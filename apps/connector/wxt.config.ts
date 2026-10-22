@@ -13,16 +13,19 @@ export function portalOrigin(mode: string): string {
   return new URL(url).origin;
 }
 
+/** Pacchetto per il Chrome Web Store: lo Store non accetta `key` (l'ID lo assegna lui). */
+const STORE = process.env.WXT_STORE === '1';
+
 export default defineConfig({
   srcDir: 'src',
-  // La build dei test end-to-end (tempi brevissimi) non deve mai finire nella cartella che si carica in Chrome.
-  outDir: process.env.WXT_SWEEP_FAST === '1' ? '.output-e2e' : '.output',
+  // La build dei test end-to-end (tempi brevissimi) e quella dello Store non devono mai finire nella cartella che si carica in Chrome.
+  outDir: process.env.WXT_SWEEP_FAST === '1' ? '.output-e2e' : STORE ? '.output-store' : '.output',
   manifest: ({ mode }) => {
     const origin = portalOrigin(mode);
     return {
       name: 'HomeRadar connettore',
       description: 'Cerca gli annunci di privati della tua zona quando lo chiedi dal portale HomeRadar',
-      key: MANIFEST_KEY,
+      ...(STORE ? {} : { key: MANIFEST_KEY }),
       permissions: ['storage', 'alarms', 'notifications'],
       host_permissions: [...PORTAL_HOSTS, `${origin}/*`],
       externally_connectable: { matches: [`${origin}/*`] },
