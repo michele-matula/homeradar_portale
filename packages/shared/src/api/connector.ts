@@ -102,7 +102,13 @@ export const StartSweepBody = body({});
 const BAD_REQUEST = { error: 'Richiesta non valida' };
 const field = (max: number) => z.string(BAD_REQUEST).min(1, BAD_REQUEST).max(max, BAD_REQUEST);
 /** Collegamento: il codice monouso avuto dal portale, più come si presenta il connettore. */
-export const LinkBody = body({ code: field(200), name: field(100), version: field(20) });
+export const LinkBody = body({
+  code: field(200), name: field(100), version: field(20),
+  /** Token che il browser aveva già: il dispositivo vecchio si sostituisce, non resta come connettore muto. */
+  previousToken: z.string(BAD_REQUEST).max(200, BAD_REQUEST).optional(),
+});
+/** Il connettore si fa sentire all'avvio e una volta al giorno, con nome e versione aggiornati. */
+export const HelloBody = body({ name: field(100), version: field(20) });
 
 /** Connettore collegato, come lo vede l'agente nel portale. */
 export interface DeviceInfo {

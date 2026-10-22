@@ -24,14 +24,39 @@ export async function insertDevice(
   return { id, token };
 }
 
-/** Codice di collegamento per l'utente; nel database c'è solo il suo hash. */
-export async function createLinkCode(db: D1Database, userId: string, now: number): Promise<string> {
+/** Codici non scaduti che un utente può avere insieme. */
+export const MAX_OPEN_LINK_CODES = 5;
+
+/** Codice di collegamento per l'utente; nel database c'è solo il suo hash. null se ne ha già troppi aperti. */
+export async function createLinkCode(db: D1Database, userId: string, now: number): Promise<string | null> {
+  const open = await db.prepare('SELECT COUNT(*) AS n FROM link_codes WHERE user_id = ? AND expires_at > ?').bind(userId, now).first<{ n: number }>();
+  if ((open?.n ?? 0) >= MAX_OPEN_LINK_CODES) return null;
   const code = newToken();
   await db.batch([
     db.prepare('DELETE FROM link_codes WHERE expires_at <= ?').bind(now),
     db.prepare('INSERT INTO link_codes (code_hash, user_id, expires_at) VALUES (?, ?, ?)').bind(await hashToken(code), userId, now + LINK_CODE_TTL_MS),
   ]);
   return code;
+}
+
+/** Contatto del connettore: nome, versione e ultimo contatto, sempre (non ogni tanto come le altre richieste). */
+export async function touchDevice(db: D1Database, deviceId: string, name: string, version: string, now: number): Promise<void> {
+  await db.prepare('UPDATE devices SET name = ?, version = ?, last_seen_at = ? WHERE id = ?').bind(name, version, now, deviceId).run();
+}
+
+/**
+ * Il browser si ricollega con il token che aveva: i giri del dispositivo vecchio passano al nuovo, che lo sostituisce.
+ * Solo se il vecchio è dello stesso utente; altrimenti non cambia niente.
+ */
+export async function replaceDevice(db: D1Database, userId: string, previousToken: string, newId: string): Promise<void> {
+  const old = await db.prepare('SELECT id FROM devices WHERE token_hash = ? AND user_id = ? AND id <> ?')
+    .bind(await hashToken(previousToken), userId, newId)
+    .first<{ id: string }>();
+  if (!old) return;
+  await db.batch([
+    db.prepare('UPDATE sweeps SET device_id = ? WHERE device_id = ?').bind(newId, old.id),
+    db.prepare('DELETE FROM devices WHERE id = ?').bind(old.id),
+  ]);
 }
 
 /** Utente del codice, che si consuma: due richieste con lo stesso codice non passano entrambe. null se scaduto o ignoto. */

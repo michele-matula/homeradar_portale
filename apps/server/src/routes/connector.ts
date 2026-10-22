@@ -1,6 +1,6 @@
-import { BatchBody, FinishBody, LinkBody, RunBody, StartSweepBody } from '@homeradar/shared/api/connector';
+import { BatchBody, FinishBody, HelloBody, LinkBody, RunBody, StartSweepBody } from '@homeradar/shared/api/connector';
 import { ErrorReportBody } from '@homeradar/shared/api/types';
-import { deviceRoute, insertDevice, redeemLinkCode } from '../device';
+import { deviceRoute, insertDevice, redeemLinkCode, replaceDevice, touchDevice } from '../device';
 import { QUOTA, recordErrors, takeQuota } from '../errors';
 import { fail, json, readBody, route, type Route } from '../http';
 import { ingestBatch, MAX_BATCH_BYTES } from '../ingest';
@@ -18,7 +18,8 @@ export const connectorRoutes: Route[] = [
     const user = userId && (await findUserById(env.DB, userId));
     if (!user) return fail(400, 'Codice di collegamento non valido o scaduto');
     if (user.status !== 'active') return fail(403, 'Account sospeso');
-    const { token } = await insertDevice(env.DB, user.id, body.name, now, body.version);
+    const { id, token } = await insertDevice(env.DB, user.id, body.name, now, body.version);
+    if (body.previousToken) await replaceDevice(env.DB, user.id, body.previousToken, id);
     // L'account del token: il portale lo confronta con quello di chi è entrato (PC condiviso, cambio d'account).
     return json({ token, userId: user.id }, 201);
   }),
@@ -50,6 +51,13 @@ export const connectorRoutes: Route[] = [
     const own = await env.DB.prepare('SELECT id FROM sweeps WHERE id = ? AND user_id = ?').bind(id, user.id).first();
     if (!own) return fail(404, 'Giro non trovato');
     return json({ result: await finishSweep(env.DB, id!, body.outcome, now) });
+  }),
+
+  deviceRoute('POST', '/connector/hello', async (req, env, _p, { deviceId, now }) => {
+    const body = await readBody(req, HelloBody);
+    if (body instanceof Response) return body;
+    await touchDevice(env.DB, deviceId, body.name, body.version, now);
+    return new Response(null, { status: 204 });
   }),
 
   deviceRoute('POST', '/connector/errors', async (req, env, _p, { user, deviceId, now }) => {

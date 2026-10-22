@@ -121,3 +121,72 @@ describe('computer collegati', () => {
     expect((await fetchConnector('POST', '/connector/sweeps', {}, bearer(token))).status).toBe(401);
   });
 });
+
+describe('contatto del connettore', () => {
+  it('hello aggiorna nome, versione e ultimo contatto', async () => {
+    const u = await agent();
+    const { token } = (await (await link(await codeFor(u.cookie))).json()) as { token: string };
+    const before = Date.now() - 60_000;
+    await env.DB.prepare('UPDATE devices SET last_seen_at = ?').bind(before).run();
+    const r = await fetchConnector('POST', '/connector/hello', { name: 'Edge · Windows', version: '0.4.0' }, bearer(token));
+    expect(r.status).toBe(204);
+    const d = await env.DB.prepare('SELECT name, version, last_seen_at FROM devices').first<{ name: string; version: string; last_seen_at: number }>();
+    expect(d).toMatchObject({ name: 'Edge · Windows', version: '0.4.0' });
+    expect(d!.last_seen_at).toBeGreaterThan(before);
+  });
+
+  it('hello senza token → 401', async () => {
+    expect((await fetchConnector('POST', '/connector/hello', { name: 'x', version: '1' })).status).toBe(401);
+  });
+});
+
+describe('ricollegamento dello stesso browser', () => {
+  async function linked(cookie: string, previousToken?: string) {
+    const r = await fetchConnector('POST', '/connector/link', { code: await codeFor(cookie), ...LINK, ...(previousToken ? { previousToken } : {}) });
+    expect(r.status).toBe(201);
+    return ((await r.json()) as { token: string }).token;
+  }
+  const deviceIdOf = async (token: string) =>
+    (await env.DB.prepare('SELECT id FROM devices WHERE token_hash = ?').bind(await (await import('../src/crypto')).hashToken(token)).first<{ id: string }>())?.id;
+
+  it('il dispositivo vecchio sparisce e i suoi giri passano al nuovo', async () => {
+    const u = await agent();
+    const old = await linked(u.cookie);
+    const oldId = (await deviceIdOf(old))!;
+    for (const id of [crypto.randomUUID(), crypto.randomUUID()]) {
+      await env.DB.prepare("INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at, finished_at, outcome) VALUES (?, ?, ?, 1, 1, 2, 'completed')")
+        .bind(id, u.id, oldId).run();
+    }
+    const fresh = await linked(u.cookie, old);
+    const newId = (await deviceIdOf(fresh))!;
+    expect(await devices(u.cookie)).toHaveLength(1);
+    const moved = await env.DB.prepare('SELECT COUNT(*) AS n FROM sweeps WHERE device_id = ?').bind(newId).first<{ n: number }>();
+    expect(moved!.n).toBe(2);
+    expect((await fetchConnector('POST', '/connector/hello', { name: 'x', version: '1' }, bearer(old))).status).toBe(401);
+  });
+
+  it("il token di un altro agente non tocca il suo dispositivo", async () => {
+    const other = await agent();
+    const theirs = await linked(other.cookie);
+    const u = await agent();
+    await linked(u.cookie, theirs);
+    expect(await devices(other.cookie)).toHaveLength(1);
+    expect(await devices(u.cookie)).toHaveLength(1);
+  });
+
+  it('un token sconosciuto non cambia niente', async () => {
+    const u = await agent();
+    await linked(u.cookie, 'sconosciuto');
+    expect(await devices(u.cookie)).toHaveLength(1);
+  });
+});
+
+describe('codici di collegamento', () => {
+  it('al più 5 aperti per agente', async () => {
+    const u = await agent();
+    for (let i = 0; i < 5; i++) await codeFor(u.cookie);
+    const r = await fetchApi('POST', '/api/devices/link-code', {}, { Cookie: u.cookie });
+    expect(r.status).toBe(429);
+    expect(await r.json()).toEqual({ error: 'Troppi codici di collegamento: riprova tra qualche minuto' });
+  });
+});
