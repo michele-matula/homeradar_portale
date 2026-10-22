@@ -13,11 +13,13 @@ export function Privacy() {
         <h2>Cosa fa il connettore</h2>
         <p>
           Il connettore è l'estensione di Chrome che fa il giro delle ricerche. Legge Immobiliare.it, Idealista, Subito e CasaDaPrivato solo
-          durante un giro che lanci tu dal portale con «Cerca», e solo nella scheda aperta per quel giro. Fuori dal giro non legge niente.
+          durante un giro che lanci tu dal portale con «Cerca», e solo nella scheda aperta per quel giro. Fuori dal giro non legge né manda
+          niente.
         </p>
         <p>
-          Durante il giro, su Immobiliare.it e Subito i dati letti passano dalla pagina del sito al connettore: per come funzionano quei siti,
-          sono visibili anche ai loro script.
+          Su Immobiliare.it e Subito una piccola parte del connettore lavora dentro le pagine del sito, in ogni scheda: passa al resto del
+          connettore i dati che il sito ha già caricato. Restano nella pagina, visibili anche agli script del sito, e il connettore li usa solo
+          durante il giro, nella scheda del giro.
         </p>
 
         <h2>Cosa arriva al portale</h2>

@@ -12,7 +12,9 @@ Testi da incollare nella dashboard sviluppatore (https://chrome.google.com/webst
 
 > HomeRadar connettore è il complemento del portale HomeRadar per agenti immobiliari. Non ha un'interfaccia propria: funziona solo con un account del portale.
 >
-> Quando l'agente preme «Cerca» nel portale, il connettore apre una finestra e percorre le ricerche della sua zona su Immobiliare.it, Idealista, Subito e CasaDaPrivato. Legge solo i risultati di quelle ricerche, solo durante il giro e solo nella scheda aperta per il giro; fuori dal giro non legge niente.
+> Quando l'agente preme «Cerca» nel portale, il connettore apre una finestra e percorre le ricerche della sua zona su Immobiliare.it, Idealista, Subito e CasaDaPrivato. Legge solo i risultati di quelle ricerche, solo durante il giro e solo nella scheda aperta per il giro; fuori dal giro non legge né manda niente.
+>
+> Su Immobiliare.it e Subito un piccolo script del connettore lavora dentro le pagine del sito, in ogni scheda, e passa al connettore i dati che il sito ha già caricato: il connettore li usa solo durante il giro, nella scheda del giro.
 >
 > Al portale manda solo annunci di privati, e di ognuno solo i dati dell'annuncio (link, titolo, indirizzo, comune, tipologia, superficie, locali, prezzo, data, foto di copertina). Mai numeri di telefono né nomi dei venditori.
 
@@ -30,7 +32,7 @@ Testi da incollare nella dashboard sviluppatore (https://chrome.google.com/webst
 - `storage`: conserva il collegamento all'account del portale, la coda delle pagine lette in attesa d'invio e gli errori da segnalare.
 - `alarms`: riprova gli invii non riusciti e manda al portale un contatto al giorno (versione e ultimo uso) per sapere che il connettore funziona.
 - `notifications`: un solo avviso, quando i dati di un giro non riescono a partire da molto tempo (problema di connessione).
-- Host `www.immobiliare.it`, `www.idealista.it`, `www.subito.it`, `www.casadaprivato.it`: leggere i risultati delle ricerche, solo nella scheda del giro lanciato dall'agente.
+- Host `www.immobiliare.it`, `www.idealista.it`, `www.subito.it`, `www.casadaprivato.it`: leggere i risultati delle ricerche, solo nella scheda del giro lanciato dall'agente. Su Immobiliare.it e Subito uno script nella pagina (in ogni scheda) inoltra i dati che il sito ha già caricato; si usano solo nella scheda del giro.
 - Host del portale (`homeradar-portale.homeradar-pilot-worker.workers.dev`): mandare gli annunci letti all'account dell'agente e ricevere dalla pagina del portale i comandi «Cerca» e «Ferma».
 
 **Codice remoto:** no, tutto il codice è nel pacchetto.
