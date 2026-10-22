@@ -186,6 +186,20 @@ describe('giro del connettore', () => {
     expect(h.stored()!.sweep.runs[1]!.outcome).toBe('pending');
   });
 
+  it('un timer del giro precedente non tocca il giro nuovo', async () => {
+    const h = harness();
+    await h.runner.start();
+    await h.runner.page(70, msg(page('immobiliare')));
+    const oldPause = h.timers.at(-1)!.fn;
+    await h.runner.stop();
+    await h.runner.start();
+    oldPause();
+    await new Promise((r) => setTimeout(r, 0));
+    await h.runner.running();
+    expect(h.deps.navigate).not.toHaveBeenCalled();
+    expect(h.stored()!.sweep.current).toBe(0);
+  });
+
   it('tutte fresche: nessuna finestra', async () => {
     const h = harness({ plan: async () => ({ sweepId: null, searches: [], skipped: 3 }) });
     expect(await h.runner.start()).toEqual({ sweepId: null, total: 0, skipped: 3 });

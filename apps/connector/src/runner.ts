@@ -56,6 +56,8 @@ export function createRunner(d: RunnerDeps) {
   let loaded = false;
   let timer: unknown = null;
   let stopKeepAlive: (() => void) | null = null;
+  /** Cambia a ogni avvio e fine: un timer di un giro finito non tocca quello nuovo. */
+  let generation = 0;
   // Un passo alla volta: messaggi dei content script, timer e comandi del portale non si accavallano.
   let queue: Promise<unknown> = Promise.resolve();
   const serial = <T>(fn: () => Promise<T>): Promise<T> => {
@@ -75,15 +77,23 @@ export function createRunner(d: RunnerDeps) {
     if (timer != null) d.clearTimer(timer);
     timer = null;
   }
+  /** Timer del giro in corso (pausa o attesa della pagina); scatta solo se il giro è ancora lo stesso. */
+  function later(fn: () => Promise<void>, ms: number): void {
+    const gen = generation;
+    const handle: unknown = d.setTimer(() => void serial(async () => {
+      if (timer === handle) timer = null;
+      if (gen === generation) await fn();
+    }), ms);
+    timer = handle;
+  }
   function armTimeout(): void {
-    timer = d.setTimer(() => void serial(timeoutTick), d.timing.pageTimeoutMs);
+    later(timeoutTick, d.timing.pageTimeoutMs);
   }
   async function enqueueAll(items: Outgoing[]): Promise<void> {
     for (const o of items) await d.enqueue(o);
   }
 
   async function go(index: number): Promise<void> {
-    timer = null;
     if (!st) return;
     st.sweep = beginStep(st.sweep, index);
     st.awaiting = true;
@@ -104,11 +114,10 @@ export function createRunner(d: RunnerDeps) {
     if (!st) return;
     const index = nextStep(st.sweep);
     if (index == null) return end(null, true);
-    timer = d.setTimer(() => void serial(() => go(index)), pauseMs(d.timing.pauseMs[st.sweep.runs[index]!.spec.portal], d.random));
+    later(() => go(index), pauseMs(d.timing.pauseMs[st.sweep.runs[index]!.spec.portal], d.random));
   }
 
   async function timeoutTick(): Promise<void> {
-    timer = null;
     if (!st?.awaiting) return;
     const before = st.sweep;
     st.awaiting = false;
@@ -121,6 +130,7 @@ export function createRunner(d: RunnerDeps) {
   /** Chiude il giro: `how` null = finito da solo. */
   async function end(how: 'stopped' | 'interrupted' | null, closeWindow: boolean): Promise<void> {
     clearTimer();
+    generation++;
     stopKeepAlive?.();
     stopKeepAlive = null;
     const cur = st!;
@@ -142,6 +152,7 @@ export function createRunner(d: RunnerDeps) {
   return {
     start: () => serial(async (): Promise<SweepStarted> => {
       if (await load()) throw new Error(SWEEP_RUNNING);
+      generation++;
       const plan = await d.plan();
       if (!plan.sweepId || !plan.searches.length) return { sweepId: null, total: 0, skipped: plan.skipped };
       let sweep = createSweep(plan.searches, d.now(), plan.sweepId);
