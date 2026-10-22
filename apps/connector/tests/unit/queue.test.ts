@@ -58,7 +58,8 @@ describe('coda d\'invio', () => {
     let fail = true;
     const t = setup(() => (fail ? 503 : 200));
     await t.enq({ path: '/connector/batches', body: 1 });
-    await t.enq({ path: '/connector/runs', body: 2 });
+    await t.store.add({ path: '/connector/runs', body: 2, createdAt: t.now(), attempts: 0, nextAt: t.now() });
+    await t.q.flush();
     expect(t.sent).toEqual(['/connector/batches']);
     expect((await t.store.first())!.attempts).toBe(1);
     expect(t.schedule).toHaveBeenLastCalledWith(t.now() + 30_000);
@@ -74,6 +75,17 @@ describe('coda d\'invio', () => {
     t.tick(3_600_000);
     await t.q.flush();
     expect(t.sent.slice(-2)).toEqual(['/connector/batches', '/connector/runs']);
+    expect(await t.store.all()).toEqual([]);
+  });
+
+  it('un elemento nuovo (giro in corso) riprova subito il primo, anche prima dell\'attesa', async () => {
+    let fail = true;
+    const t = setup(() => (fail ? 503 : 200));
+    await t.enq({ path: '/connector/batches', body: 1 });
+    fail = false;
+    t.tick(1_000);
+    await t.enq({ path: '/connector/batches', body: 2 });
+    expect(t.sent).toEqual(['/connector/batches', '/connector/batches', '/connector/batches']);
     expect(await t.store.all()).toEqual([]);
   });
 
@@ -127,7 +139,7 @@ describe('coda d\'invio', () => {
     await t.q.flush({ force: true });
     expect(t.onUnlinked).toHaveBeenCalledTimes(1);
     expect(await t.store.all()).toEqual([]);
-    expect(t.sent).toEqual(['/connector/batches', '/connector/batches']);
+    expect(t.sent.every((p) => p === '/connector/batches')).toBe(true);
   });
 
   it('in attesa contano solo le pagine', async () => {

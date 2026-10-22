@@ -74,11 +74,14 @@ export function createSendQueue(d: SendQueueDeps) {
   }
 
   return {
-    /** Mette in coda e avvia l'invio senza aspettarlo: il giro non si ferma per la rete. */
+    /**
+     * Mette in coda e avvia l'invio senza aspettarlo: il giro non si ferma per la rete. Un elemento nuovo vuol dire giro
+     * in corso: si riprova subito anche il primo, senza aspettare l'attesa (il server chiude un giro fermo da 15 minuti).
+     */
     async enqueue(o: Outgoing): Promise<void> {
       const now = d.now();
       await d.store.add({ path: o.path, body: o.body, createdAt: now, attempts: 0, nextAt: now });
-      flush().catch((err: unknown) => console.warn('[HomeRadar] coda d\'invio', err));
+      flush({ force: true }).catch((err: unknown) => console.warn('[HomeRadar] coda d\'invio', err));
     },
     flush,
     async state(): Promise<{ pending: number; stuck: boolean }> {
