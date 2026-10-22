@@ -6,6 +6,7 @@ import {
   anyFilter, clearTag, EMPTY_FILTERS, PRIORITY_FILTER_LABELS, PRIORITY_FILTERS, TAB_LABELS, TABS, toggleIn,
   type FilteredLeads, type LeadFilters, type Tab,
 } from '../leads/filters';
+import { ExportBar } from './ExportBar';
 import { LeadRow } from './LeadRow';
 
 
@@ -37,7 +38,7 @@ function Section({ title, label, children }: { title: string; label: string; chi
 }
 
 /** Schede, ricerca, filtri, ordinamento e righe della lista. */
-export function LeadList({ result, filters, setFilters, tab, setTab, sort, setSort, filtersOpen, toggleFilters, zone, selectedKey, now, footer }: {
+export function LeadList({ result, filters, setFilters, tab, setTab, sort, setSort, filtersOpen, toggleFilters, zone, selectedKey, now }: {
   result: FilteredLeads;
   filters: LeadFilters;
   setFilters(f: LeadFilters): void;
@@ -50,7 +51,6 @@ export function LeadList({ result, filters, setFilters, tab, setTab, sort, setSo
   zone: ComuneRef[];
   selectedKey: string | null;
   now: number;
-  footer?: ReactNode;
 }) {
   const set = (patch: Partial<LeadFilters>) => setFilters({ ...filters, ...patch });
   const { visible, tags } = result;
@@ -241,7 +241,7 @@ export function LeadList({ result, filters, setFilters, tab, setTab, sort, setSo
           </ul>
         </>
       )}
-      {footer}
+      <ExportBar leads={visible} />
     </div>
   );
 }

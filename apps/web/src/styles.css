@@ -268,3 +268,5 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: none; box-
   .lead__head { flex-direction: column; gap: 0; }
   .lead__link .sparkline { display: none; }
 }
+.export { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; background: var(--bg); border-top: 1px solid var(--border); }
+.export__hint { margin-left: auto; font-size: 12px; color: var(--muted); }
