@@ -101,7 +101,7 @@ Gli altri minori delle tappe 2–4 restano dove sono.
 
 ## Informativa
 
-Si salvano dati nuovi (errori legati all'agente e al computer). Va aggiunta una frase all'informativa e alzata `PRIVACY_VERSION`, come chiede CLAUDE.md. La revisione completa dell'informativa resta in tappa 6.
+Si salvano dati nuovi (errori legati all'agente e al computer). L'informativa oggi è un segnaposto («Testo in preparazione») e non c'è un passaggio per riaccettarla: `PRIVACY_VERSION` resta 1 e gli errori raccolti si aggiungono all'elenco di cosa l'informativa della tappa 6 deve dire (roadmap).
 
 ## Vincoli
 
