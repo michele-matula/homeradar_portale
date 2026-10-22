@@ -33,7 +33,7 @@ Sostituisce «Testo in preparazione» in `apps/web/src/pages/Privacy.tsx`. Breve
 - l'archivio degli annunci è condiviso fra gli agenti della stessa zona; stati, note, richiami e impostazioni sono privati dell'agente;
 - il portale registra i computer collegati (browser, sistema, versione, ultimo uso) e gli errori di portale e connettore, ripuliti dai dati degli annunci, tenuti 90 giorni;
 - durante il giro, su Immobiliare e Subito, i dati letti passano dalla pagina al connettore e sono quindi visibili agli script di quei siti;
-- chi contattare: Michele, con l'indirizzo email che lui indica in fase di piano (unico dato da chiedere).
+- chi contattare: Michele Matula, matulamichele@gmail.com.
 
 Deve restare pubblica (lo è già: `PUBLIC` in `App.tsx`) perché lo Store la apre senza accesso. `PRIVACY_VERSION` non cambia.
 
@@ -83,6 +83,3 @@ Quelli di `CLAUDE.md` restano tutti validi. Nessuna migrazione prevista; se una 
 
 Forma del contatore in `LeadDetail`, comportamento del campo numerico vuoto, come si costruisce lo stato D1 dell'e2e (`--persist-to` in una cartella temporanea, seed via `wrangler d1 execute --local`, admin con `scripts/create-admin.mjs` o SQL), nome della variabile della build per lo Store.
 
-## Da chiedere a Michele nel piano
-
-L'indirizzo email da mettere nell'informativa come contatto.
