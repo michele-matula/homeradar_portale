@@ -114,7 +114,11 @@ export const adminUserRoutes: Route[] = [
   admin('DELETE', '/api/admin/users/:id', async (_req, env, { id }) => {
     const u = await target(env, id!);
     if (u instanceof Response) return u;
-    await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(u.id).run();
+    // I suoi errori restano, senza agente né dispositivo; OR REPLACE: se c'è già un gruppo anonimo uguale, prende il suo posto.
+    await env.DB.batch([
+      env.DB.prepare("UPDATE OR REPLACE errors SET user_id = '', device_id = '' WHERE user_id = ?").bind(u.id),
+      env.DB.prepare('DELETE FROM users WHERE id = ?').bind(u.id),
+    ]);
     return new Response(null, { status: 204 });
   }),
 ];

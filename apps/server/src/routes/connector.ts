@@ -1,5 +1,7 @@
 import { BatchBody, FinishBody, LinkBody, RunBody, StartSweepBody } from '@homeradar/shared/api/connector';
+import { ErrorReportBody } from '@homeradar/shared/api/types';
 import { deviceRoute, insertDevice, redeemLinkCode } from '../device';
+import { QUOTA, recordErrors, takeQuota } from '../errors';
 import { fail, json, readBody, route, type Route } from '../http';
 import { ingestBatch, MAX_BATCH_BYTES } from '../ingest';
 import { finishSweep, reportRun, startSweep } from '../sweeps';
@@ -48,5 +50,17 @@ export const connectorRoutes: Route[] = [
     const own = await env.DB.prepare('SELECT id FROM sweeps WHERE id = ? AND user_id = ?').bind(id, user.id).first();
     if (!own) return fail(404, 'Giro non trovato');
     return json({ result: await finishSweep(env.DB, id!, body.outcome, now) });
+  }),
+
+  deviceRoute('POST', '/connector/errors', async (req, env, _p, { user, deviceId, now }) => {
+    const body = await readBody(req, ErrorReportBody);
+    if (body instanceof Response) return body;
+    const allowed = await takeQuota(env.DB, `d:${deviceId}`, body.errors.length, QUOTA.device, now);
+    if (allowed > 0) {
+      const d = await env.DB.prepare('SELECT name FROM devices WHERE id = ?').bind(deviceId).first<{ name: string }>();
+      const origin = { source: 'connector' as const, version: body.version, userId: user.id, deviceId, deviceName: d?.name };
+      await recordErrors(env.DB, origin, body.errors.slice(0, allowed), now);
+    }
+    return new Response(null, { status: 204 });
   }),
 ];

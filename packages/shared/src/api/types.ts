@@ -119,3 +119,17 @@ export const SplitBody = body({
   key: ListingKey,
   fromKeys: z.array(ListingKey, { error: 'Annunci non validi' }).min(1, { error: 'Annunci non validi' }).max(20, { error: 'Troppi annunci' }),
 });
+
+export type ErrorSource = 'portal' | 'connector' | 'server';
+export const MAX_ERRORS_PER_REPORT = 20;
+const BAD_REPORT = { error: 'Segnalazione non valida' };
+const reportText = (max: number) => z.string(BAD_REPORT).min(1, BAD_REPORT).max(max, BAD_REPORT);
+/** Errori da portale o connettore: il server li ripulisce prima di salvarli (`sanitizeError`). */
+export const ErrorReportBody = z.strictObject({
+  version: reportText(40),
+  errors: z
+    .array(z.strictObject({ message: reportText(2000), context: reportText(300).optional(), at: z.number(BAD_REPORT).int(BAD_REPORT) }, BAD_REPORT), BAD_REPORT)
+    .min(1, BAD_REPORT)
+    .max(MAX_ERRORS_PER_REPORT, BAD_REPORT),
+}, BAD_REPORT);
+export type ErrorReport = z.infer<typeof ErrorReportBody>;
