@@ -36,6 +36,20 @@ describe('errori del portale', () => {
     expect(e).toMatchObject({ source: 'portal', version: 'abc1234', message: 'Errore su <url> prezzo # <testo>', user_id: u.id, device_id: '', context: '/lead/:chiave', count: 1 });
   });
 
+  it('un errore senza contesto non cancella quello già salvato', async () => {
+    const u = await loginAs('agent');
+    await report([{ message: 'Boom', context: '/impostazioni', at: Date.now() }], { Cookie: u.cookie });
+    await report(one('Boom'), { Cookie: u.cookie });
+    expect((await rows())[0]).toMatchObject({ count: 2, context: '/impostazioni' });
+  });
+
+  it("gli errori del portale non aggiornano l'ultimo accesso", async () => {
+    const u = await loginAs('agent');
+    await report(one('Boom'), { Cookie: u.cookie });
+    const r = await env.DB.prepare('SELECT last_seen_at FROM users WHERE id = ?').bind(u.id).first<{ last_seen_at: number | null }>();
+    expect(r!.last_seen_at).toBeNull();
+  });
+
   it('lo stesso errore due volte è un gruppo solo', async () => {
     const u = await loginAs('agent');
     const t0 = Date.now() - 60_000;

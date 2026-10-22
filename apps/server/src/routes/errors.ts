@@ -22,7 +22,7 @@ export const errorRoutes: Route[] = [
     const body = await readBody(req, ErrorReportBody);
     if (body instanceof Response) return body;
     const now = Date.now();
-    const auth = sessionToken(req) ? await authenticate(req, env, now) : null;
+    const auth = sessionToken(req) ? await authenticate(req, env, now, false) : null;
     const userId = auth && !(auth instanceof Response) ? auth.user.id : undefined;
     let allowed: number;
     if (userId) allowed = await takeQuota(env.DB, `u:${userId}`, body.errors.length, QUOTA.user, now);
