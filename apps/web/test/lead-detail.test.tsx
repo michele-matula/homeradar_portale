@@ -126,7 +126,7 @@ describe('scheda del lead', () => {
     };
   }
 
-  it("due salvataggi ravvicinati: vince l'ultimo partito anche se risponde prima", async () => {
+  it('due salvataggi ravvicinati partono uno dopo l\'altro e a video resta l\'ultimo', async () => {
     const w = slowWrites();
     renderAt('/lead/immobiliare%3A1');
     await screen.findByRole('region', { name: 'Scheda del lead' });
@@ -135,29 +135,31 @@ describe('scheda del lead', () => {
     fireEvent.change(notes, { target: { value: 'richiamare' } });
     fireEvent.blur(notes);
     fireEvent.change(d.getByRole('combobox', { name: 'Stato' }), { target: { value: 'contacted' } });
+    await vi.waitFor(() => expect(w.bodies).toHaveLength(1));
+    // Il secondo aspetta il primo: così il server li applica in ordine e ogni risposta contiene i precedenti.
+    await act(async () => {});
+    expect(w.bodies).toHaveLength(1);
+    await w.release(0, 200, { state: saved({ notes: 'richiamare' }) });
     await vi.waitFor(() => expect(w.bodies).toHaveLength(2));
     await w.release(1, 200, { state: saved({ status: 'contacted', notes: 'richiamare' }) });
-    await w.release(0, 200, { state: saved({ notes: 'richiamare' }) });
     expect((d.getByRole('combobox', { name: 'Stato' }) as HTMLSelectElement).value).toBe('contacted');
   });
 
-  it("se l'ultimo salvataggio fallisce si vede l'errore e lo stato a video non torna indietro", async () => {
+  it("se l'ultimo salvataggio fallisce si vede l'errore e resta a video quello riuscito prima", async () => {
     const w = slowWrites();
     renderAt('/lead/immobiliare%3A1');
     await screen.findByRole('region', { name: 'Scheda del lead' });
     const d = within(detail());
-    fireEvent.change(d.getByRole('combobox', { name: 'Stato' }), { target: { value: 'contacted' } });
-    await vi.waitFor(() => expect(w.bodies).toHaveLength(1));
-    await w.release(0, 200, { state: saved({ status: 'contacted' }) });
     fireEvent.change(d.getByRole('combobox', { name: 'Stato' }), { target: { value: 'discarded' } });
     const notes = d.getByRole('textbox', { name: 'Note' });
     fireEvent.change(notes, { target: { value: 'x' } });
     fireEvent.blur(notes);
-    await vi.waitFor(() => expect(w.bodies).toHaveLength(3));
-    await w.release(2, 500, { error: 'Errore del server' });
-    await w.release(1, 200, { state: saved({ status: 'new' }) });
+    await vi.waitFor(() => expect(w.bodies).toHaveLength(1));
+    await w.release(0, 200, { state: saved({ status: 'discarded' }) });
+    await vi.waitFor(() => expect(w.bodies).toHaveLength(2));
+    await w.release(1, 500, { error: 'Errore del server' });
     expect(d.getByRole('alert').textContent).toBe('Errore del server');
-    expect((d.getByRole('combobox', { name: 'Stato' }) as HTMLSelectElement).value).toBe('contacted');
+    expect((d.getByRole('combobox', { name: 'Stato' }) as HTMLSelectElement).value).toBe('discarded');
   });
 
   it('Separa non parte due volte', async () => {

@@ -49,19 +49,25 @@ export function LeadDetail({ lead, now, onSaved, onSplit, onClose }: {
   const [error, setError] = useState<string | null>(null);
   const recall = recallStatus(state.recallAt, now);
 
-  /** Salvataggi partiti: la risposta di uno superato da un altro più recente non si mostra (porterebbe lo stato indietro). */
-  const seq = useRef(0);
-  async function save(patch: LeadPatch): Promise<boolean> {
-    setError(null);
-    const mine = ++seq.current;
-    try {
-      const r = await api<{ state: LeadState }>('PATCH', '/api/leads/state', { keys, ...patch });
-      if (mine === seq.current) onSaved(r.state);
-      return true;
-    } catch (e) {
-      setError(errorText(e));
-      return false;
-    }
+  /**
+   * I salvataggi partono uno dopo l'altro (nota poi stato, a pochi istanti): il server li applica in ordine e ogni risposta
+   * contiene anche i precedenti, così a video resta sempre l'ultimo stato salvato, anche se il salvataggio dopo fallisce.
+   */
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  function save(patch: LeadPatch): Promise<boolean> {
+    const run = queue.current.then(async () => {
+      setError(null);
+      try {
+        const r = await api<{ state: LeadState }>('PATCH', '/api/leads/state', { keys, ...patch });
+        onSaved(r.state);
+        return true;
+      } catch (e) {
+        setError(errorText(e));
+        return false;
+      }
+    });
+    queue.current = run;
+    return run;
   }
 
   async function saveNotes(): Promise<void> {
