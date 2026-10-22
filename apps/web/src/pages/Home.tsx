@@ -1,5 +1,7 @@
 import type { Me } from '@homeradar/shared/api/types';
+import { Devices } from '../components/Devices';
 import { Layout } from '../components/Layout';
+import { Sweep } from '../components/Sweep';
 
 export function Home({ me, onSignOut }: { me: Me; onSignOut(): void }) {
   return (
@@ -20,6 +22,8 @@ export function Home({ me, onSignOut }: { me: Me; onSignOut(): void }) {
           </>
         )}
       </section>
+      <Sweep />
+      <Devices />
     </Layout>
   );
 }
