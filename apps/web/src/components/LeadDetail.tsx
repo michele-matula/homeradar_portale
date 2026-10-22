@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { LeadPatch } from '@homeradar/shared/core/lead-state';
 import { leadKeys, leadPortals, priorityLabel, STATUS_LABELS } from '@homeradar/shared/core/leads';
 import { aboveMarketText, isAboveMarket, marketExplanation } from '@homeradar/shared/core/market';
@@ -28,7 +28,23 @@ export function LeadDetail({ lead, now, onSaved, onSplit, onClose }: {
   const portals = leadPortals(lead);
   const keys = leadKeys(lead);
   const [notes, setNotes] = useState(state.notes);
+  /** Nota cambiata dall'agente e non ancora salvata: solo questa si manda al server. */
+  const [dirty, setDirty] = useState(false);
   const [noteState, setNoteState] = useState<NoteState>('idle');
+  // Una nota non toccata segue quella salvata (cambiata da un altro dispositivo e riletta), così non si sovrascrive.
+  useEffect(() => {
+    if (!dirty) setNotes(state.notes);
+  }, [state.notes, dirty]);
+  // Chiudendo la scheda (indietro del browser, «← Lead», un altro lead) la nota scritta si salva anche senza uscire dal campo.
+  const pending = useRef<{ notes: string; keys: string[]; onSaved: typeof onSaved } | null>(null);
+  pending.current = dirty ? { notes, keys, onSaved } : null;
+  useEffect(
+    () => () => {
+      const p = pending.current;
+      if (p) api<{ state: LeadState }>('PATCH', '/api/leads/state', { keys: p.keys, notes: p.notes }).then((r) => p.onSaved(r.state), () => {});
+    },
+    [],
+  );
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recall = recallStatus(state.recallAt, now);
@@ -46,9 +62,11 @@ export function LeadDetail({ lead, now, onSaved, onSplit, onClose }: {
   }
 
   async function saveNotes(): Promise<void> {
-    if (notes === state.notes) return;
+    if (!dirty) return;
     setNoteState('saving');
-    setNoteState((await save({ notes })) ? 'saved' : 'idle');
+    const ok = await save({ notes });
+    if (ok) setDirty(false);
+    setNoteState(ok ? 'saved' : 'idle');
   }
 
   const pick = (recallAt: number) => {
@@ -162,6 +180,7 @@ export function LeadDetail({ lead, now, onSaved, onSplit, onClose }: {
             value={notes}
             onChange={(e) => {
               setNotes(e.target.value);
+              setDirty(true);
               setNoteState('idle');
             }}
             onBlur={() => void saveNotes()}

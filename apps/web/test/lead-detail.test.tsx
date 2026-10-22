@@ -1,8 +1,9 @@
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { aboveMarketText } from '@homeradar/shared/core/market';
 import { addDays, startOfLocalDay } from '@homeradar/shared/core/recall';
 import type { LeadState, LeadView } from '@homeradar/shared/shared/types';
+import { LeadDetail } from '../src/components/LeadDetail';
 import { AGENT_ROUTES, mockApi, renderAt, type Routes } from './helpers';
 import { lead, NOW, source } from './fixtures';
 
@@ -132,6 +133,27 @@ describe('scheda del lead', () => {
     await vi.waitFor(() => expect(window.location.pathname).toBe('/'));
     expect(screen.getByRole('radio', { name: 'Alta (1)' }).getAttribute('aria-checked')).toBe('true');
     await vi.waitFor(() => expect(scrollTo).toHaveBeenLastCalledWith(0, 480));
+  });
+
+  it('una nota scritta si salva anche chiudendo la scheda senza uscire dal campo', async () => {
+    const calls = mockApi(routes({ 'PATCH /api/leads/state': () => ({ status: 200, body: { state: saved({ notes: 'da non perdere' }) } }) }));
+    renderAt('/lead/immobiliare%3A1');
+    await screen.findByRole('region', { name: 'Scheda del lead' });
+    fireEvent.change(within(detail()).getByRole('textbox', { name: 'Note' }), { target: { value: 'da non perdere' } });
+    fireEvent.click(screen.getByRole('button', { name: '← Lead' }));
+    await vi.waitFor(() => expect(calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ keys: ['immobiliare:1', 'idealista:2'], notes: 'da non perdere' }]));
+  });
+
+  it('una nota cambiata altrove si aggiorna e non viene sovrascritta da quella vecchia', () => {
+    const calls = mockApi({});
+    const props = { now: NOW, onSaved: vi.fn(), onSplit: async () => {}, onClose: vi.fn() };
+    const { rerender } = render(<LeadDetail lead={lead({ notes: 'vecchia' })} {...props} />);
+    rerender(<LeadDetail lead={lead({ notes: 'nuova' })} {...props} />);
+    const notes = screen.getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement;
+    expect(notes.value).toBe('nuova');
+    fireEvent.focus(notes);
+    fireEvent.blur(notes);
+    expect(calls.filter((c) => c.method === 'PATCH')).toEqual([]);
   });
 
   it('«← Lead» chiude la scheda', async () => {
