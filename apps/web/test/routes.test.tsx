@@ -1,8 +1,17 @@
 import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { AGENT_ROUTES, mockApi, renderAt } from './helpers';
+import { AGENT_ROUTES, mockApi, NOT_LOGGED, renderAt } from './helpers';
 
 describe('rotte del portale', () => {
+  it('/informativa è pubblica e dice cosa non si salva mai e chi contattare', async () => {
+    mockApi({ 'GET /api/me': NOT_LOGGED });
+    renderAt('/informativa');
+    expect(await screen.findByRole('heading', { name: 'Informativa (versione di prova)' })).toBeTruthy();
+    expect(screen.getByText(/Mai numeri di telefono né nomi dei venditori/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'matulamichele@gmail.com' }).getAttribute('href')).toBe('mailto:matulamichele@gmail.com');
+    expect(window.location.pathname).toBe('/informativa');
+  });
+
   it('/impostazioni mostra le impostazioni', async () => {
     mockApi(AGENT_ROUTES);
     renderAt('/impostazioni');
