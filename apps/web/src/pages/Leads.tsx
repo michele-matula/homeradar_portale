@@ -4,7 +4,6 @@ import { leadKeys } from '@homeradar/shared/core/leads';
 import { isDue, nextRecallCheck } from '@homeradar/shared/core/recall';
 import type { LeadState, LeadView } from '@homeradar/shared/shared/types';
 import { api, errorText } from '../api';
-import { Devices } from '../components/Devices';
 import { Layout } from '../components/Layout';
 import { LeadDetail } from '../components/LeadDetail';
 import { LeadList } from '../components/LeadList';
@@ -29,8 +28,6 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
   const [sortByTab, setSortByTab] = useState<SortByTab>(loadSortByTab);
   const [filtersOpen, setFiltersOpen] = useState(loadFiltersOpen);
   const [now, setNow] = useState(Date.now);
-  // Cresce a ogni collegamento del connettore: la lista dei computer si rilegge.
-  const [linked, setLinked] = useState(0);
   const hasZone = me.comuni.length > 0;
   const listScroll = useRef(0);
   const wasOpen = useRef(selectedKey != null);
@@ -96,7 +93,6 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
         userId={me.id}
         connector={connector}
         hasZone={hasZone}
-        onLinked={() => setLinked((n) => n + 1)}
         onFinished={reload}
         onShowNew={(since) => {
           setFilters({ ...EMPTY_FILTERS, since });
@@ -158,7 +154,6 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
         </div>
       )}
       {error && leads && <p className="error" role="alert">{error}</p>}
-      <Devices reload={linked} />
     </Layout>
   );
 }

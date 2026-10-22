@@ -196,6 +196,26 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: none; box-
 .sparkline--flat { color: var(--subtle); }
 .empty { padding: 32px 20px; text-align: center; color: var(--muted); border: 1px dashed var(--border-strong); border-radius: var(--radius); background: var(--surface); }
 .empty p { margin: 0; }
+/* Giro delle ricerche */
+.sweep { display: grid; gap: 6px; }
+.sweep h2 { margin: 0; }
+.sweep p { margin: 0; }
+.sweep__bar { width: 100%; height: 8px; accent-color: var(--brand); }
+.sweep__current, .sweep__last { font-size: 14px; color: var(--muted); }
+.sweep__portals { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+.sweep__reason { font-size: 14px; color: #7a3a05; }
+.sweep__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* Impostazioni */
+.settings { display: flex; flex-direction: column; }
+.settings__row { position: relative; display: flex; align-items: flex-end; gap: 8px; margin-bottom: 10px; }
+.settings__field { display: flex; flex-direction: column; gap: 4px; font-weight: 500; }
+.settings__field input { width: 120px; }
+.settings__group { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 10px; padding: 0; border: 0; }
+.settings__group legend { margin-bottom: 4px; font-weight: 500; }
+.settings__actions { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.settings__actions .notice { margin: 0; }
+
 /* Lista e scheda: affiancate su schermi larghi; sotto i 900 px la scheda aperta prende la pagina. */
 .workspace { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 16px; align-items: start; }
 .workspace__detail { position: sticky; top: 72px; max-height: calc(100vh - 88px); overflow-y: auto; }

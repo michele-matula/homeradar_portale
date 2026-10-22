@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConnectorReply, ConnectorState, PortalMessage } from '@homeradar/shared/api/connector-messages';
 import { Devices } from '../src/components/Devices';
 import { Sweep } from '../src/components/Sweep';
-import { Leads } from '../src/pages/Leads';
 import type { ConnectorPort } from '../src/connector';
 import { mockApi, type Routes } from './helpers';
 
@@ -203,23 +202,6 @@ describe('avanzamento del giro', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByRole('button', { name: 'Cerca' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Ricerche' })).toBeNull();
-  });
-});
-
-describe('pagina dell\'agente', () => {
-  it('dopo il collegamento da «Cerca» compare il computer collegato, senza ricaricare', async () => {
-    let list: unknown[] = [];
-    api({
-      'GET /api/devices': () => ({ status: 200, body: list }),
-      'POST /api/devices/link-code': () => {
-        list = [{ id: 'd1', name: 'Chrome su Windows', createdAt: 1, lastSeenAt: 2 }];
-        return { status: 201, body: { code: 'cod1' } };
-      },
-    });
-    const c = fakeConnector((m) => (m.type === 'ping' ? ok({ ...STATE, linked: false, userId: null }) : m.type === 'startSweep' ? ok({ sweepId: 'g', total: 1, skipped: 0 }) : ok(null)));
-    render(<Leads me={{ id: 'u1', email: 'a@b.it', role: 'agent', comuni: [{ istat: '016219', name: 'Treviglio', province: 'BG' }] }} onSignOut={() => {}} connector={c.port} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
-    expect(await screen.findByText('Chrome su Windows')).toBeTruthy();
   });
 });
 
