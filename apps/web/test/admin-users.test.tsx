@@ -98,7 +98,7 @@ describe('admin utenti', () => {
   it('un agente non vede la pagina', async () => {
     mockApi({ 'GET /api/me': { status: 200, body: { user: AGENT } } });
     renderAt('/admin/utenti');
-    expect(await screen.findByText('Ciao mario@rossi.it')).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Impostazioni' })).toBeTruthy();
     await vi.waitFor(() => expect(window.location.pathname).toBe('/'));
   });
 });

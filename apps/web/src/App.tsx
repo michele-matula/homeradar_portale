@@ -2,14 +2,18 @@ import type { Me } from '@homeradar/shared/api/types';
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { AdminUsers } from './pages/AdminUsers';
-import { Home } from './pages/Home';
+import { Leads } from './pages/Leads';
 import { Login } from './pages/Login';
 import { Privacy } from './pages/Privacy';
+import { Settings } from './pages/Settings';
 import { TokenPage } from './pages/TokenPage';
-import { navigate, usePath } from './router';
+import { leadKeyOf, navigate, usePath } from './router';
 
 /** Pagine aperte a tutti: link d'invito, reimpostazione, informativa. */
 const PUBLIC = /^\/(attiva|reimposta)\/[^/]+$|^\/informativa$/;
+
+/** Pagine dell'agente; l'admin ha in più `/admin/*`. */
+const isAgentPath = (path: string) => path === '/' || path === '/impostazioni' || leadKeyOf(path) != null;
 
 export function App() {
   const path = usePath();
@@ -29,7 +33,7 @@ export function App() {
     if (me === null && path !== '/accedi') navigate('/accedi', true);
     else if (me && path === '/accedi') navigate('/', true);
     else if (me && path.startsWith('/admin') && me.role !== 'admin') navigate('/', true);
-    else if (me && path !== '/' && !path.startsWith('/admin')) navigate('/', true);
+    else if (me && !isAgentPath(path) && !path.startsWith('/admin')) navigate('/', true);
   }, [me, path, isPublic]);
 
   const signedIn = (user: Me) => {
@@ -47,5 +51,7 @@ export function App() {
   if (me === undefined) return <div className="page page--center" aria-busy="true" />;
   if (me === null) return <Login onDone={signedIn} />;
   if (path === '/admin/utenti' && me.role === 'admin') return <AdminUsers me={me} onSignOut={signedOut} />;
-  return <Home me={me} onSignOut={signedOut} />;
+  if (path === '/impostazioni') return <Settings me={me} onSignOut={signedOut} />;
+  // `/` e `/lead/<chiave>` sono la stessa pagina: aprire e chiudere una scheda non perde filtri e lista.
+  return <Leads me={me} onSignOut={signedOut} />;
 }

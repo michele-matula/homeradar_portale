@@ -53,7 +53,7 @@ describe('attivazione', () => {
     fill('password-lunga', 'password-lunga');
     fireEvent.click(screen.getByLabelText(/Ho letto l'informativa/));
     fireEvent.click(screen.getByRole('button', { name: 'Attiva l\'account' }));
-    expect(await screen.findByText('Ciao mario@rossi.it')).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Impostazioni' })).toBeTruthy();
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ password: 'password-lunga', privacyVersion: PRIVACY_VERSION });
   });
 
@@ -86,7 +86,7 @@ describe('reimpostazione', () => {
     expect(screen.queryByLabelText(/Ho letto l'informativa/)).toBeNull();
     fill('nuova-password', 'nuova-password');
     fireEvent.click(screen.getByRole('button', { name: 'Salva la password' }));
-    expect(await screen.findByText('Ciao mario@rossi.it')).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Impostazioni' })).toBeTruthy();
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ password: 'nuova-password' });
   });
 });

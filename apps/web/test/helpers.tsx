@@ -1,3 +1,4 @@
+import { DEFAULT_AGENT_SETTINGS } from '@homeradar/shared/api/types';
 import { render } from '@testing-library/react';
 import { vi } from 'vitest';
 import { App } from '../src/App';
@@ -37,3 +38,12 @@ export function renderAt(path: string) {
 export const AGENT = { id: 'u1', email: 'mario@rossi.it', role: 'agent', comuni: [{ istat: '016219', name: 'Treviglio', province: 'BG' }] };
 export const ADMIN = { id: 'a1', email: 'admin@homeradar.test', role: 'admin', comuni: [] };
 export const NOT_LOGGED = { status: 401, body: { error: 'Accesso richiesto' } };
+
+/** Risposte di base per un agente collegato senza lead né giri. */
+export const AGENT_ROUTES: Routes = {
+  'GET /api/me': { status: 200, body: { user: AGENT } },
+  'GET /api/leads': { status: 200, body: { leads: [], dueRecalls: 0 } },
+  'GET /api/sweep': { status: 200, body: { running: null, last: null } },
+  'GET /api/devices': { status: 200, body: [] },
+  'GET /api/settings': { status: 200, body: DEFAULT_AGENT_SETTINGS },
+};
