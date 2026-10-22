@@ -59,6 +59,11 @@ export function Settings({ me, onSignOut }: { me: Me; onSignOut(): void }) {
     draft && edit({ categories: draft.categories.includes(c) ? draft.categories.filter((x) => x !== c) : [...draft.categories, c] });
 
   async function submit(): Promise<void> {
+    // Un campo svuotato vale NaN, che in JSON diventa null: il server risponderebbe con un errore meno chiaro.
+    if (!draft || !Number.isFinite(draft.minAgeDays) || !Number.isFinite(draft.minDropPercent)) {
+      setError('Scrivi un numero in «Online da almeno» e in «Ribasso di almeno»');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -89,14 +94,14 @@ export function Settings({ me, onSignOut }: { me: Me; onSignOut(): void }) {
             <div className="settings__row">
               <label className="settings__field">
                 <span>Online da almeno (giorni)</span>
-                <input type="number" min={1} max={3650} step={1} value={draft.minAgeDays} onChange={(e) => edit({ minAgeDays: e.target.valueAsNumber })} />
+                <input type="number" min={1} max={3650} step={1} value={Number.isNaN(draft.minAgeDays) ? '' : draft.minAgeDays} onChange={(e) => edit({ minAgeDays: e.target.valueAsNumber })} />
               </label>
               <InfoTip label="Online da almeno">{AGE_HELP}</InfoTip>
             </div>
             <div className="settings__row">
               <label className="settings__field">
                 <span>Ribasso di almeno (%)</span>
-                <input type="number" min={0} max={100} step="any" value={draft.minDropPercent} onChange={(e) => edit({ minDropPercent: e.target.valueAsNumber })} />
+                <input type="number" min={0} max={100} step="any" value={Number.isNaN(draft.minDropPercent) ? '' : draft.minDropPercent} onChange={(e) => edit({ minDropPercent: e.target.valueAsNumber })} />
               </label>
               <InfoTip label="Ribasso di almeno">{DROP_HELP}</InfoTip>
             </div>

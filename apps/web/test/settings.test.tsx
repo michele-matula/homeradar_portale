@@ -19,6 +19,27 @@ describe('impostazioni', () => {
     expect(save().disabled).toBe(true);
   });
 
+  it('un campo numerico vuoto non si manda e lo dice', async () => {
+    const calls = mockApi(routes());
+    renderAt('/impostazioni');
+    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Online da almeno (giorni)' }), { target: { value: '' } });
+    fireEvent.click(save());
+    expect((await screen.findByRole('alert')).textContent).toBe('Scrivi un numero in «Online da almeno» e in «Ribasso di almeno»');
+    expect(calls.filter((c) => c.method === 'PUT')).toEqual([]);
+  });
+
+  it('ribasso 0 si salva', async () => {
+    const calls = mockApi(routes({
+      'GET /api/settings': { status: 200, body: { ...DEFAULT_AGENT_SETTINGS, minDropPercent: 10 } },
+      'PUT /api/settings': (b) => ({ status: 200, body: { ...DEFAULT_AGENT_SETTINGS, ...(b as object) } }),
+    }));
+    renderAt('/impostazioni');
+    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Ribasso di almeno (%)' }), { target: { value: '0' } });
+    fireEvent.click(save());
+    expect(await screen.findByText('Impostazioni salvate')).toBeTruthy();
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ minDropPercent: 0 });
+  });
+
   it('Salva disattivato senza modifiche', async () => {
     mockApi(routes());
     renderAt('/impostazioni');
