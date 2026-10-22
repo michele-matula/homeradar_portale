@@ -1,3 +1,4 @@
+import './zod-config';
 import type { PortalAdapter } from '@homeradar/shared/adapters/types';
 import { isBridgeMessage } from './bridge';
 import { createReader, type ReaderMessage } from './reader';

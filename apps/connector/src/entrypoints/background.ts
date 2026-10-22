@@ -1,3 +1,4 @@
+import '../zod-config';
 import type { SweepPlan } from '@homeradar/shared/api/connector';
 import { NOT_LINKED } from '@homeradar/shared/api/connector-messages';
 import { createClient, errorOf, type ServerReply } from '../client';
