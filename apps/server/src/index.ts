@@ -3,9 +3,10 @@ import { fail, json, route, sameOrigin, type Route } from './http';
 import { adminUserRoutes } from './routes/admin-users';
 import { authRoutes } from './routes/auth';
 import { connectorRoutes } from './routes/connector';
+import { deviceRoutes } from './routes/devices';
 import { leadRoutes } from './routes/leads';
 
-const routes: Route[] = [route('GET', '/api/health', async () => json({ ok: true })), ...authRoutes, ...adminUserRoutes, ...leadRoutes];
+const routes: Route[] = [route('GET', '/api/health', async () => json({ ok: true })), ...authRoutes, ...adminUserRoutes, ...leadRoutes, ...deviceRoutes];
 
 async function dispatch(req: Request, env: Env, path: string, list: Route[]): Promise<Response> {
   for (const r of list) {

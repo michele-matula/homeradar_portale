@@ -13,7 +13,7 @@ export function fetchApi(method: string, path: string, body?: unknown, headers: 
 
 /** Svuota tutte le tabelle, figlie prima (la configurazione resta). */
 export async function resetDb(): Promise<void> {
-  const tables = ['run_pages', 'run_seen', 'search_runs', 'batches', 'sweeps', 'devices', 'lead_states', 'splits', 'user_settings', 'price_snapshots', 'listings', 'calibration_points', 'login_attempts', 'sessions', 'tokens', 'users'];
+  const tables = ['link_codes', 'run_pages', 'run_seen', 'search_runs', 'batches', 'sweeps', 'devices', 'lead_states', 'splits', 'user_settings', 'price_snapshots', 'listings', 'calibration_points', 'login_attempts', 'sessions', 'tokens', 'users'];
   await env.DB.batch(tables.map((t) => env.DB.prepare(`DELETE FROM ${t}`)));
 }
 
