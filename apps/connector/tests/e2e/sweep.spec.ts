@@ -1,7 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { BrowserContext } from '@playwright/test';
 import { CONNECTOR_ID } from '@homeradar/shared/api/connector-messages';
-import { expect, PORTAL, send, test } from './fixtures';
+import { expect, launchConnector, PORTAL, send, test } from './fixtures';
 import type { FakeServer } from './fake-server';
 import { buildSearchHtml } from './fixture-page';
 
@@ -104,6 +106,22 @@ test('Ferma: giro fermato', async ({ context, portal, server }) => {
   expect(finished(server)!.body).toEqual({ outcome: 'stopped' });
   expect(paths(server)).not.toContain('/connector/batches');
   expect((await send(portal, { type: 'ping' })).data.sweeping).toBe(false);
+});
+
+test('browser chiuso a metà giro: alla riapertura il giro si chiude come interrotto', async ({ server }) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'hr-e2e-'));
+  const first = await launchConnector(dir);
+  await serveImmobiliare(first, cassanoPage, 10_000);
+  const portal = await first.newPage();
+  await portal.goto(`${PORTAL}/`);
+  await send(portal, { type: 'link', code: 'cod' });
+  expect((await send(portal, { type: 'startSweep' })).ok).toBe(true);
+  await first.close();
+  expect(finished(server)).toBeUndefined();
+  const second = await launchConnector(dir);
+  await waitFinish(server);
+  expect(finished(server)!.body).toEqual({ outcome: 'interrupted' });
+  await second.close();
 });
 
 test('verifica di DataDome: nessun lotto, ricerca bloccata, giro in parte', async ({ context, portal, server }) => {

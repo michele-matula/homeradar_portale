@@ -5,6 +5,18 @@ import { startFakeServer, type FakeServer } from './fake-server';
 
 export const PORTAL = 'http://localhost:8799';
 
+/** Chromium con il connettore di prova; `dir` vuoto = profilo temporaneo, altrimenti riaperto com'era. */
+export async function launchConnector(dir: string): Promise<BrowserContext> {
+  const ext = path.resolve('.output-e2e/chrome-mv3');
+  const context = await chromium.launchPersistentContext(dir, {
+    channel: 'chromium',
+    args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`],
+  });
+  // Nessuna richiesta esce verso internet: i portali sono serviti dai test, il portale dal server finto.
+  await context.route(/^https?:\/\/(?!www\.immobiliare\.it\/|localhost:8799\/|127\.0\.0\.1:8799\/)/, (route) => route.abort());
+  return context;
+}
+
 export const test = base.extend<{ server: FakeServer; context: BrowserContext; extensionId: string; portal: Page }>({
   server: async ({}, use) => {
     const server = await startFakeServer();
@@ -13,13 +25,7 @@ export const test = base.extend<{ server: FakeServer; context: BrowserContext; e
   },
   context: async ({ server }, use) => {
     void server;
-    const ext = path.resolve('.output-e2e/chrome-mv3');
-    const context = await chromium.launchPersistentContext('', {
-      channel: 'chromium',
-      args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`],
-    });
-    // Nessuna richiesta esce verso internet: i portali sono serviti dai test, il portale dal server finto.
-    await context.route(/^https?:\/\/(?!www\.immobiliare\.it\/|localhost:8799\/|127\.0\.0\.1:8799\/)/, (route) => route.abort());
+    const context = await launchConnector('');
     await use(context);
     await context.close();
   },

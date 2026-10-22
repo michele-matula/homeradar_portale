@@ -214,8 +214,9 @@ export function createRunner(d: RunnerDeps) {
       if (s && s.windowId === windowId) await end('interrupted', false);
     }),
 
-    recover: () => serial(async () => {
-      if (await load()) await end('interrupted', true);
+    /** Giro rimasto a metà: worker riavviato (la finestra c'è ancora) o browser riavviato (`closeWindow` false). */
+    recover: ({ closeWindow = true }: { closeWindow?: boolean } = {}) => serial(async () => {
+      if (await load()) await end('interrupted', closeWindow);
     }),
   };
 }

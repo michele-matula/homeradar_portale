@@ -167,6 +167,15 @@ describe('giro del connettore', () => {
     expect(h.deps.closeWindow).toHaveBeenCalledWith(7);
   });
 
+  it('browser riavviato: giro interrotto, ma nessuna finestra chiusa (gli ID ora sono di altre finestre)', async () => {
+    const h = harness();
+    await h.runner.start();
+    const restarted = createRunner({ ...h.deps, loadState: async () => h.stored() });
+    await restarted.recover({ closeWindow: false });
+    expect(h.queued.at(-1)).toEqual({ path: FINISH, body: { outcome: 'interrupted' } });
+    expect(h.deps.closeWindow).not.toHaveBeenCalled();
+  });
+
   it('reindirizzamento: ricerca non trovata, nessun lotto', async () => {
     const h = harness();
     await h.runner.start();

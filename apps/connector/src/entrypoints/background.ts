@@ -7,6 +7,7 @@ import { createSendQueue } from '../queue';
 import { openQueueStore } from '../queue-store';
 import type { ReaderMessage } from '../reader';
 import { createRunner, type RunnerState } from '../runner';
+import { stuckSignal } from '../stuck';
 import { TIMING } from '../timing';
 
 const PORTAL = new URL(import.meta.env.WXT_PORTAL_URL).origin;
@@ -19,6 +20,19 @@ export default defineBackground(() => {
   const version = browser.runtime.getManifest().version;
   const token = async () => ((await browser.storage.local.get('token')).token as string | undefined) ?? null;
   const unlink = () => browser.storage.local.remove(['token', 'userId']);
+  const stuck = stuckSignal({
+    load: async () => (await browser.storage.local.get('stuck')).stuck === true,
+    save: (v) => browser.storage.local.set({ stuck: v }),
+    show(v) {
+      void browser.action.setBadgeText({ text: v ? '!' : '' });
+      if (v) void browser.action.setBadgeBackgroundColor({ color: '#c62828' });
+    },
+    notify() {
+      void browser.notifications.create('stuck', {
+        type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: 'HomeRadar', message: STUCK_TEXT,
+      });
+    },
+  });
   const client = createClient({ baseUrl: PORTAL, token, fetch: (input, init) => fetch(input, init) });
 
   const queue = createSendQueue({
@@ -31,15 +45,7 @@ export default defineBackground(() => {
       setTimeout(() => void queue.flush().catch(() => {}), Math.max(0, at - Date.now()));
       void browser.alarms.create('queue', { when: at });
     },
-    onStuck(stuck) {
-      void browser.action.setBadgeText({ text: stuck ? '!' : '' });
-      if (stuck) {
-        void browser.action.setBadgeBackgroundColor({ color: '#c62828' });
-        void browser.notifications.create('stuck', {
-          type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: 'HomeRadar', message: STUCK_TEXT,
-        });
-      }
-    },
+    onStuck: (v) => void stuck(v).catch(() => {}),
     // Scollegato dal portale: niente più invii possibili, il giro in corso si ferma.
     async onUnlinked() {
       await unlink();
@@ -71,10 +77,10 @@ export default defineBackground(() => {
     closeWindow: async (windowId) => {
       await browser.windows.remove(windowId);
     },
-    loadState: async () => ((await browser.storage.session.get('sweep')).sweep as RunnerState | undefined) ?? null,
+    loadState: async () => ((await browser.storage.local.get('sweep')).sweep as RunnerState | undefined) ?? null,
     saveState: async (s) => {
-      if (s) await browser.storage.session.set({ sweep: s });
-      else await browser.storage.session.remove('sweep');
+      if (s) await browser.storage.local.set({ sweep: s });
+      else await browser.storage.local.remove('sweep');
     },
     timing: TIMING,
     async plan() {
@@ -148,7 +154,16 @@ export default defineBackground(() => {
   browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'queue') void queue.flush().catch(() => {});
   });
-  // Worker riavviato a giro in corso: il giro si chiude come interrotto; la coda riparte, anche con ciò che era fermo.
-  void runner.recover().catch(() => {});
-  void queue.flush({ force: true }).catch(() => {});
+  // Worker riavviato o browser chiuso a giro in corso (lo stato è in storage.local): il giro si chiude come interrotto.
+  // storage.session sopravvive al worker ma non al browser: se manca il segno, il browser è ripartito e gli ID delle
+  // finestre sono di altre finestre, da non chiudere.
+  void (async () => {
+    const sameBrowser = (await browser.storage.session.get('alive')).alive === true;
+    await browser.storage.session.set({ alive: true });
+    await runner.recover({ closeWindow: sameBrowser });
+  })().catch(() => {});
+  void queue.flush().catch(() => {});
+  void queue.state().then((q) => stuck(q.stuck)).catch(() => {});
+  // All'avvio del browser il worker parte da sé: si riprova anche quello che era fermo da oltre 24 ore.
+  browser.runtime.onStartup.addListener(() => void queue.flush({ force: true }).catch(() => {}));
 });
