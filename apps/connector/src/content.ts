@@ -9,7 +9,11 @@ export interface ScriptContext {
 }
 
 const send = (m: ReaderMessage) => browser.runtime.sendMessage(m);
-const warn = (err: unknown) => console.warn('[HomeRadar]', err);
+/** Errore di lettura: in console e, tramite il background, al server. */
+const warn = (err: unknown) => {
+  console.warn('[HomeRadar]', err);
+  send({ type: 'error', message: err instanceof Error ? `${err.name}: ${err.message}` : String(err) }).catch(() => {});
+};
 /** Verifica di DataDome o pagina inesistente: nessun dato arriverà, il giro lo deve sapere subito. */
 const PROBLEM_CHECK_MS = 2500;
 

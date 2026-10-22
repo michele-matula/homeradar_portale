@@ -5,6 +5,9 @@ import type { ConnectorTiming } from './timing';
 /** Rifiuti definitivi: rimandare lo stesso corpo darebbe la stessa risposta. */
 const REJECTED = new Set([400, 404, 413]);
 
+/** Percorso senza gli id dei giri: gli errori uguali si raggruppano. */
+const pathOf = (path: string) => path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id');
+
 export interface SendQueueDeps {
   store: QueueStore;
   post(path: string, body: unknown): Promise<ServerReply>;
@@ -14,6 +17,8 @@ export interface SendQueueDeps {
   schedule(at: number): void;
   /** Un invio non riesce da più di `giveUpMs` (o non più): chiamato solo al cambio. */
   onStuck(stuck: boolean): void;
+  /** Un invio rifiutato per sempre, o un errore della coda (status 0): va fra gli errori del connettore. */
+  onRejected(path: string, status: number, error: string | null): void;
   /** Il server non riconosce più il dispositivo. */
   onUnlinked(): Promise<void>;
 }
@@ -48,7 +53,7 @@ export function createSendQueue(d: SendQueueDeps) {
         continue;
       }
       if (REJECTED.has(reply.status)) {
-        console.warn('[HomeRadar] invio scartato', item.path, reply.status, errorOf(reply));
+        d.onRejected(pathOf(item.path), reply.status, errorOf(reply));
         await d.store.remove(item.seq!);
         continue;
       }
@@ -81,7 +86,7 @@ export function createSendQueue(d: SendQueueDeps) {
     async enqueue(o: Outgoing): Promise<void> {
       const now = d.now();
       await d.store.add({ path: o.path, body: o.body, createdAt: now, attempts: 0, nextAt: now });
-      flush({ force: true }).catch((err: unknown) => console.warn('[HomeRadar] coda d\'invio', err));
+      flush({ force: true }).catch((err: unknown) => d.onRejected(pathOf(o.path), 0, String(err)));
     },
     flush,
     async state(): Promise<{ pending: number; stuck: boolean }> {

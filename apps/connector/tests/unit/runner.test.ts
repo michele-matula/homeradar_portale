@@ -39,6 +39,7 @@ function harness(o: Partial<RunnerDeps> = {}) {
     timing: TIMING,
     plan: async (): Promise<SweepPlan> => ({ sweepId: SWEEP_ID, searches: [IMM, SUB], skipped: 1 }),
     enqueue: async (x) => void queued.push(x),
+    reportError: vi.fn(),
     ...o,
   };
   const runner = createRunner(deps);
@@ -224,5 +225,29 @@ describe('giro del connettore', () => {
     await expect(f.runner.start()).rejects.toThrow('Giro già in corso su un altro computer');
     expect(f.stored()).toBeNull();
     expect(f.deps.openWindow).not.toHaveBeenCalled();
+  });
+});
+
+describe('errori del giro', () => {
+  it('finestra che non si apre: giro chiuso come interrotto e segnalato', async () => {
+    const h = harness({ openWindow: vi.fn(async () => { throw new Error('No window'); }) });
+    await expect(h.runner.start()).rejects.toThrow('No window');
+    expect(h.queued.at(-1)).toEqual({ path: FINISH, body: { outcome: 'interrupted' } });
+    expect(h.deps.reportError).toHaveBeenCalledWith('Finestra del giro non aperta: No window');
+    expect(await h.runner.running()).toBe(false);
+  });
+
+  it('ricerca in timeout: segnalata col portale', async () => {
+    const h = harness({ plan: async () => ({ sweepId: SWEEP_ID, searches: [IMM], skipped: 0 }) });
+    await h.runner.start();
+    await h.fire();
+    expect(h.deps.reportError).toHaveBeenCalledWith('Ricerca non riuscita: pagina non arrivata in tempo', 'immobiliare');
+  });
+
+  it('annunci non letti: segnalati col portale', async () => {
+    const h = harness({ plan: async () => ({ sweepId: SWEEP_ID, searches: [IMM], skipped: 0 }) });
+    await h.runner.start();
+    await h.runner.page(70, msg(page('immobiliare', { parseErrors: 3 })));
+    expect(h.deps.reportError).toHaveBeenCalledWith('Ricerca non riuscita: annunci non letti', 'immobiliare');
   });
 });
