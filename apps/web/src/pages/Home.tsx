@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import type { Me } from '@homeradar/shared/api/types';
 import { Devices } from '../components/Devices';
 import { Layout } from '../components/Layout';
 import { Sweep } from '../components/Sweep';
+import type { ConnectorPort } from '../connector';
 
-export function Home({ me, onSignOut }: { me: Me; onSignOut(): void }) {
+export function Home({ me, onSignOut, connector }: { me: Me; onSignOut(): void; connector?: ConnectorPort }) {
+  // Cresce a ogni collegamento del connettore: la lista dei computer si rilegge.
+  const [linked, setLinked] = useState(0);
   return (
     <Layout me={me} onSignOut={onSignOut}>
       <section className="card">
@@ -22,8 +26,8 @@ export function Home({ me, onSignOut }: { me: Me; onSignOut(): void }) {
           </>
         )}
       </section>
-      <Sweep userId={me.id} />
-      <Devices />
+      <Sweep userId={me.id} connector={connector} onLinked={() => setLinked((n) => n + 1)} />
+      <Devices reload={linked} />
     </Layout>
   );
 }

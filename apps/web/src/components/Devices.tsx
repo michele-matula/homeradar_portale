@@ -5,14 +5,14 @@ import { api, errorText } from '../api';
 const formatDate = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString('it-IT') : 'mai');
 
 /** Computer dove il connettore è collegato all'account; scollegarne uno ne invalida il token. */
-export function Devices() {
+export function Devices({ reload = 0 }: { /** Cambia quando un computer si collega: la lista si rilegge. */ reload?: number }) {
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => api<DeviceInfo[]>('GET', '/api/devices').then(setDevices, (e: unknown) => setError(errorText(e)));
   useEffect(() => {
     void load();
-  }, []);
+  }, [reload]);
 
   async function unlink(id: string) {
     setError(null);

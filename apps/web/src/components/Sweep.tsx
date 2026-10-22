@@ -15,7 +15,9 @@ function lastLine(status: SweepStatus | null): string | null {
 }
 
 /** «Cerca» e «Ferma» del giro delle ricerche, che il connettore fa sul computer dell'agente. */
-export function Sweep({ userId, connector = chromeConnector, phone = isPhone() }: { userId: string; connector?: ConnectorPort; phone?: boolean }) {
+export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), onLinked }: {
+  userId: string; connector?: ConnectorPort; phone?: boolean; /** Il connettore si è appena collegato a questo account. */ onLinked?(): void;
+}) {
   const [status, setStatus] = useState<SweepStatus | null>(null);
   /** undefined = non ancora chiesto, null = connettore assente. */
   const [conn, setConn] = useState<ConnectorState | null | undefined>(undefined);
@@ -50,6 +52,7 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone() }
     const r = await connector.send<null>({ type: 'link', code });
     if (!r) throw new Error('Il connettore non risponde');
     if (!r.ok) throw new Error(r.error);
+    onLinked?.();
   }
 
   async function start(): Promise<void> {

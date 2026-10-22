@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConnectorReply, ConnectorState, PortalMessage } from '@homeradar/shared/api/connector-messages';
 import { Devices } from '../src/components/Devices';
 import { Sweep } from '../src/components/Sweep';
+import { Home } from '../src/pages/Home';
 import type { ConnectorPort } from '../src/connector';
 import { mockApi, type Routes } from './helpers';
 
@@ -131,6 +132,23 @@ describe('«Cerca» dal portale', () => {
     api();
     render(<Sweep userId="u1" connector={fakeConnector(() => ok({ ...STATE, pending: 1 })).port} phone={false} />);
     expect(await screen.findByText("1 pagina in attesa d'invio")).toBeTruthy();
+  });
+});
+
+describe('pagina dell\'agente', () => {
+  it('dopo il collegamento da «Cerca» compare il computer collegato, senza ricaricare', async () => {
+    let list: unknown[] = [];
+    api({
+      'GET /api/devices': () => ({ status: 200, body: list }),
+      'POST /api/devices/link-code': () => {
+        list = [{ id: 'd1', name: 'Chrome su Windows', createdAt: 1, lastSeenAt: 2 }];
+        return { status: 201, body: { code: 'cod1' } };
+      },
+    });
+    const c = fakeConnector((m) => (m.type === 'ping' ? ok({ ...STATE, linked: false, userId: null }) : m.type === 'startSweep' ? ok({ sweepId: 'g', total: 1, skipped: 0 }) : ok(null)));
+    render(<Home me={{ id: 'u1', email: 'a@b.it', role: 'agent', comuni: [] }} onSignOut={() => {}} connector={c.port} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
+    expect(await screen.findByText('Chrome su Windows')).toBeTruthy();
   });
 });
 
