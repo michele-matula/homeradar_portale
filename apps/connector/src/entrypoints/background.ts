@@ -3,6 +3,7 @@ import type { SweepPlan } from '@homeradar/shared/api/connector';
 import { NOT_LINKED } from '@homeradar/shared/api/connector-messages';
 import { createClient, errorOf, type ServerReply } from '../client';
 import { deviceName } from '../device-name';
+import { createErrorLog, type StoredError } from '../errors';
 import { handleExternal } from '../external';
 import { createSendQueue } from '../queue';
 import { openQueueStore } from '../queue-store';
@@ -13,6 +14,7 @@ import { TIMING } from '../timing';
 
 const PORTAL = new URL(import.meta.env.WXT_PORTAL_URL).origin;
 const UNREACHABLE = 'Server non raggiungibile: controlla la connessione';
+const HELLO_EVERY_MS = 3_600_000;
 const STUCK_TEXT = 'HomeRadar non riesce a inviare i dati: controlla la connessione';
 
 const failure = (r: ServerReply) => new Error(errorOf(r) ?? (r.status === 0 ? UNREACHABLE : `Errore ${r.status}`));
@@ -36,6 +38,38 @@ export default defineBackground(() => {
   });
   const client = createClient({ baseUrl: PORTAL, token, fetch: (input, init) => fetch(input, init) });
 
+  const errorLog = createErrorLog({
+    load: async () => ((await browser.storage.local.get('errors')).errors as StoredError[] | undefined) ?? [],
+    save: (list) => browser.storage.local.set({ errors: list }),
+    post: (path, body) => client.post(path, body),
+    now: Date.now,
+    version,
+  });
+  // Si prova a mandarlo subito; se la rete manca resta nel buffer per il prossimo contatto.
+  const reportError = (message: string, context?: string) => void errorLog.report(message, context).then(() => errorLog.flush()).catch(() => {});
+  const flushErrors = () => void errorLog.flush().catch(() => {});
+  self.addEventListener('error', (e) => reportError(e.message || 'Errore del background'));
+  self.addEventListener('unhandledrejection', (e) => reportError(e.reason instanceof Error ? `${e.reason.name}: ${e.reason.message}` : String(e.reason)));
+
+  /** Nome del dispositivo: browser e sistema. */
+  async function currentName(): Promise<string> {
+    const brands = (navigator as Navigator & { userAgentData?: { brands: { brand: string }[] } }).userAgentData?.brands;
+    return deviceName(brands, (await browser.runtime.getPlatformInfo()).os);
+  }
+  /**
+   * Si fa sentire dal server (ultimo contatto, nome e versione), poi manda gli errori rimasti. Il worker si riaccende
+   * spesso: senza `force` al più una volta l'ora.
+   */
+  async function hello(force: boolean): Promise<void> {
+    if (!(await token())) return;
+    const last = ((await browser.storage.local.get('helloAt')).helloAt as number | undefined) ?? 0;
+    if (!force && Date.now() - last < HELLO_EVERY_MS) return;
+    const r = await client.post('/connector/hello', { name: await currentName(), version });
+    if (r.status === 401) return unlink();
+    if (r.status >= 200 && r.status < 300) await browser.storage.local.set({ helloAt: Date.now() });
+    flushErrors();
+  }
+
   const queue = createSendQueue({
     store: openQueueStore(),
     post: (path, body) => client.post(path, body),
@@ -47,6 +81,7 @@ export default defineBackground(() => {
       void browser.alarms.create('queue', { when: at });
     },
     onStuck: (v) => void stuck(v).catch(() => {}),
+    onRejected: (path, status, error) => reportError(`Invio scartato: ${status} ${error ?? ''}`.trim(), path),
     // Scollegato dal portale: niente più invii possibili, il giro in corso si ferma.
     async onUnlinked() {
       await unlink();
@@ -94,15 +129,18 @@ export default defineBackground(() => {
       return r.data as SweepPlan;
     },
     enqueue: (o) => queue.enqueue(o),
+    reportError,
   });
 
   async function link(code: string): Promise<void> {
-    const brands = (navigator as Navigator & { userAgentData?: { brands: { brand: string }[] } }).userAgentData?.brands;
-    const name = deviceName(brands, (await browser.runtime.getPlatformInfo()).os);
+    const name = await currentName();
+    // Il token che il browser aveva già: il server sostituisce quel dispositivo invece di lasciarlo come connettore muto.
+    const previousToken = await token();
     let res: Response;
     try {
       res = await fetch(`${PORTAL}/connector/link`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, name, version }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, name, version, ...(previousToken ? { previousToken } : {}) }),
       });
     } catch {
       throw new Error(UNREACHABLE);
@@ -111,6 +149,7 @@ export default defineBackground(() => {
     if (res.status !== 201) throw failure({ status: res.status, data });
     const { token: t, userId } = data as { token: string; userId: string };
     await browser.storage.local.set({ token: t, userId });
+    flushErrors();
   }
 
   browser.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
@@ -148,6 +187,10 @@ export default defineBackground(() => {
       runner.page(sender.tab?.id, m).then(() => sendResponse(null), () => sendResponse(null));
       return true;
     }
+    if (m?.type === 'error') {
+      reportError(m.message, sender.url ? new URL(sender.url).hostname : undefined);
+      return false;
+    }
     return false;
   });
 
@@ -155,7 +198,11 @@ export default defineBackground(() => {
   browser.windows.onRemoved.addListener((windowId) => void runner.windowRemoved(windowId).catch(() => {}));
   browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'queue') void queue.flush().catch(() => {});
+    if (alarm.name === 'hello') void hello(true).catch(() => {});
   });
+  // Contatto quotidiano, anche senza giri: l'admin vede che il connettore c'è e con che versione.
+  void browser.alarms.create('hello', { periodInMinutes: 24 * 60 });
+  void hello(false).catch(() => {});
   // Worker riavviato o browser chiuso a giro in corso (lo stato è in storage.local): il giro si chiude come interrotto.
   // storage.session sopravvive al worker ma non al browser: se manca il segno, il browser è ripartito e gli ID delle
   // finestre sono di altre finestre, da non chiudere.
@@ -167,5 +214,8 @@ export default defineBackground(() => {
   void queue.flush().catch(() => {});
   void queue.state().then((q) => stuck(q.stuck)).catch(() => {});
   // All'avvio del browser il worker parte da sé: si riprova anche quello che era fermo da oltre 24 ore.
-  browser.runtime.onStartup.addListener(() => void queue.flush({ force: true }).catch(() => {}));
+  browser.runtime.onStartup.addListener(() => {
+    void queue.flush({ force: true }).catch(() => {});
+    void hello(true).catch(() => {});
+  });
 });

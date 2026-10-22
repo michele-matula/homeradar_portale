@@ -5,7 +5,10 @@ import { closeDeviceSweeps } from '../sweeps';
 
 /** Computer collegati dell'agente e codice per collegarne uno. */
 export const deviceRoutes: Route[] = [
-  userRoute('POST', '/api/devices/link-code', async (_req, env, _p, { user, now }) => json({ code: await createLinkCode(env.DB, user.id, now) }, 201)),
+  userRoute('POST', '/api/devices/link-code', async (_req, env, _p, { user, now }) => {
+    const code = await createLinkCode(env.DB, user.id, now);
+    return code ? json({ code }, 201) : fail(429, 'Troppi codici di collegamento: riprova tra qualche minuto');
+  }),
 
   userRoute('GET', '/api/devices', async (_req, env, _p, { user }) => json(await listDevices(env.DB, user.id))),
 

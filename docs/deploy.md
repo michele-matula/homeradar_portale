@@ -24,7 +24,9 @@ Da `apps/server`:
 Dalla radice `npm run build`, poi da `apps/server`:
 
 1. `npx wrangler d1 migrations apply homeradar-portale --remote` (solo se ci sono migrazioni nuove);
-2. `npx wrangler deploy`.
+2. `npm run deploy` (lancia `wrangler deploy` con la versione del commit, che finisce negli errori del server; `npx wrangler deploy` funziona lo stesso, ma gli errori del server avranno versione `dev`).
+
+Se cambia il connettore (dalla tappa 5: contatto quotidiano, errori al server, ricollegamento), ricostruiscilo e reinstallalo sui PC dei piloti (sezione «Connettore»).
 
 Applica sempre le migrazioni **prima** del deploy: il codice nuovo può leggere colonne che il database vecchio non ha.
 
@@ -38,7 +40,7 @@ I cookie di sessione sono `Secure`: Chrome li accetta su `http://localhost`, qui
 
 ## Migrazioni in sospeso in produzione
 
-Al 2026-10-22 in produzione è applicata solo `0001_accounts.sql`. Prima del prossimo deploy del Worker vanno applicate `0002_archive.sql`, `0003_archive_fixes.sql` e `0004_link_codes.sql`: basta il comando del punto 1 degli aggiornamenti, che le applica in ordine. Per controllare: `npx wrangler d1 migrations list homeradar-portale --remote`.
+Al 2026-10-22 in produzione sono applicate `0001`–`0004`. Prima del deploy della tappa 5 va applicata `0005_control.sql` (errori, quota oraria, motivo delle ricerche): basta il comando del punto 1 degli aggiornamenti. Per controllare: `npx wrangler d1 migrations list homeradar-portale --remote`.
 
 ## Connettore
 

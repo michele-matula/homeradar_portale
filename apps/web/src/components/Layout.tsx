@@ -33,7 +33,13 @@ export function Layout({ me, onSignOut, dueRecalls = 0, wide = false, children }
               {dueRecalls > 0 && <span className="badge">{`${dueRecalls} da richiamare`}</span>}
             </a>
             <a {...linkProps('/impostazioni')}>Impostazioni</a>
-            {me.role === 'admin' && <a {...linkProps('/admin/utenti')}>Utenti</a>}
+            {me.role === 'admin' && (
+              <>
+                <a {...linkProps('/admin/utenti')}>Utenti</a>
+                <a {...linkProps('/admin/controllo')}>Controllo</a>
+                <a {...linkProps('/admin/errori')}>Errori</a>
+              </>
+            )}
             <button type="button" className="btn btn--ghost" onClick={signOut}>
               Esci
             </button>

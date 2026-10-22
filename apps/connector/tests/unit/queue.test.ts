@@ -26,6 +26,7 @@ function setup(replies: (path: string) => number = () => 200) {
   const schedule = vi.fn();
   const onStuck = vi.fn();
   const onUnlinked = vi.fn(async () => {});
+  const onRejected = vi.fn();
   const q = createSendQueue({
     store,
     post: async (path): Promise<ServerReply> => {
@@ -34,14 +35,14 @@ function setup(replies: (path: string) => number = () => 200) {
     },
     now: () => now,
     timing: { retryMs: RETRY, giveUpMs: DAY },
-    schedule, onStuck, onUnlinked,
+    schedule, onStuck, onUnlinked, onRejected,
   });
   // enqueue non aspetta l'invio (il giro non si ferma per la rete): qui si aspetta la coda.
   const enq = async (o: { path: string; body: unknown }) => {
     await q.enqueue(o);
     await q.flush();
   };
-  return { q, enq, store, sent, schedule, onStuck, onUnlinked, tick: (ms: number) => (now += ms), now: () => now };
+  return { q, enq, store, sent, schedule, onStuck, onUnlinked, onRejected, tick: (ms: number) => (now += ms), now: () => now };
 }
 
 describe('coda d\'invio', () => {
@@ -126,7 +127,7 @@ describe('coda d\'invio', () => {
     await t.enq({ path: '/connector/runs', body: 2 });
     expect(t.sent).toEqual(['/connector/batches', '/connector/runs']);
     expect(await t.store.all()).toEqual([]);
-    expect(warn).toHaveBeenCalled();
+    expect(t.onRejected).toHaveBeenCalledTimes(1);
     warn.mockRestore();
   });
 
@@ -156,5 +157,17 @@ describe('coda d\'invio', () => {
     await t.store.add({ path: '/b', body: 2, createdAt: 0, attempts: 0, nextAt: 0 });
     await Promise.all([t.q.flush(), t.q.flush(), t.q.flush({ force: true })]);
     expect(t.sent).toEqual(['/a', '/b']);
+  });
+});
+
+describe('invii rifiutati', () => {
+  it('si segnalano col percorso senza id, niente console', async () => {
+    const warn = vi.spyOn(console, 'warn');
+    const id = '7a1c3c58-1a7d-4c0e-9d55-3f3b8f0f2a10';
+    const t = setup(() => 400);
+    await t.enq({ path: `/connector/sweeps/${id}/finish`, body: 1 });
+    expect(t.onRejected).toHaveBeenCalledWith('/connector/sweeps/:id/finish', 400, 'no');
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

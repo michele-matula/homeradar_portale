@@ -14,6 +14,8 @@ export const PAUSE_MS: Record<Portal, [number, number]> = {
 };
 
 export type SearchOutcome = 'pending' | 'complete' | 'capped' | 'blocked' | 'error' | 'notFound' | 'skipped';
+/** Perché una ricerca è finita in `error`: pagina non arrivata in tempo, o annunci che l'adattatore non ha letto. */
+export type SearchErrorReason = 'timeout' | 'unreadable';
 
 export interface SearchRun {
   spec: SearchSpec;
@@ -21,6 +23,7 @@ export interface SearchRun {
   pages: number;
   privates: number;
   outcome: SearchOutcome;
+  reason?: SearchErrorReason;
 }
 
 /** Stato del giro: solo dati, salvato in storage.session a ogni passo. */
@@ -108,7 +111,7 @@ export function onPageRead(s: SweepState, r: PageReport): SweepState {
   if (r.parseErrors > 0) {
     const errors = (s.errorsInRow[portal] ?? 0) + 1;
     const next: SweepState = {
-      ...set({ pages, privates: run.privates + r.privates, outcome: 'error' }), errorsInRow: { ...s.errorsInRow, [portal]: errors },
+      ...set({ pages, privates: run.privates + r.privates, outcome: 'error', reason: 'unreadable' }), errorsInRow: { ...s.errorsInRow, [portal]: errors },
     };
     return errors >= 2 ? halt(next, portal, 'error') : next;
   }
@@ -124,7 +127,7 @@ export function onTimeout(s: SweepState): SweepState {
   const errors = (s.errorsInRow[portal] ?? 0) + 1;
   const next: SweepState = {
     ...s, current: null, errorsInRow: { ...s.errorsInRow, [portal]: errors },
-    runs: s.runs.map((x, i) => (i === index ? { ...x, outcome: 'error' } : x)),
+    runs: s.runs.map((x, i) => (i === index ? { ...x, outcome: 'error', reason: 'timeout' } : x)),
   };
   return errors >= 2 ? halt(next, portal, 'error') : next;
 }

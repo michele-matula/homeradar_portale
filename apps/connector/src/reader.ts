@@ -5,7 +5,9 @@ import type { ListingObservation, PageReport, ParseResult } from '@homeradar/sha
 /** Messaggi dal content script al background. */
 export type ReaderMessage =
   | { type: 'isSweepTab' }
-  | { type: 'page'; url: string; observations: ListingObservation[]; newestId?: number; report: PageReport | null };
+  | { type: 'page'; url: string; observations: ListingObservation[]; newestId?: number; report: PageReport | null }
+  /** Errore di un content script: il background lo passa al server. */
+  | { type: 'error'; message: string };
 
 export interface ReaderDeps {
   adapter: PortalAdapter;

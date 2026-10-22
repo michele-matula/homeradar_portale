@@ -92,6 +92,8 @@ export const RunBody = body({
   outcome: z.enum(['complete', 'capped', 'blocked', 'error', 'notFound', 'skipped'], { error: 'Esito non valido' }),
   pages: z.number(PAGES_ERROR).int(PAGES_ERROR).min(0, PAGES_ERROR).max(MAX_PAGES_PER_SEARCH, PAGES_ERROR),
   privates: z.number({ error: 'Numero di privati non valido' }).int({ error: 'Numero di privati non valido' }).nonnegative({ error: 'Numero di privati non valido' }),
+  /** Perché la ricerca è finita in errore: pagina non arrivata in tempo o annunci non letti. */
+  reason: z.enum(['timeout', 'unreadable'], { error: 'Esito non valido' }).optional(),
 });
 
 export const FinishBody = body({ outcome: z.enum(['completed', 'partial', 'stopped', 'interrupted'], { error: 'Esito non valido' }) });
@@ -100,7 +102,13 @@ export const StartSweepBody = body({});
 const BAD_REQUEST = { error: 'Richiesta non valida' };
 const field = (max: number) => z.string(BAD_REQUEST).min(1, BAD_REQUEST).max(max, BAD_REQUEST);
 /** Collegamento: il codice monouso avuto dal portale, più come si presenta il connettore. */
-export const LinkBody = body({ code: field(200), name: field(100), version: field(20) });
+export const LinkBody = body({
+  code: field(200), name: field(100), version: field(20),
+  /** Token che il browser aveva già: il dispositivo vecchio si sostituisce, non resta come connettore muto. */
+  previousToken: z.string(BAD_REQUEST).max(200, BAD_REQUEST).optional(),
+});
+/** Il connettore si fa sentire all'avvio e una volta al giorno, con nome e versione aggiornati. */
+export const HelloBody = body({ name: field(100), version: field(20) });
 
 /** Connettore collegato, come lo vede l'agente nel portale. */
 export interface DeviceInfo {

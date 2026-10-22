@@ -1,7 +1,7 @@
 import type { SweepPlan } from '@homeradar/shared/api/connector';
 import type { SweepStarted } from '@homeradar/shared/api/connector-messages';
 import {
-  beginStep, createSweep, finishSweep, nextStep, onPageRead, onTimeout, pauseMs, samePage, stepUrl, stopSweep, type SweepState,
+  beginStep, createSweep, finishSweep, nextStep, onPageRead, onTimeout, pauseMs, samePage, stepUrl, stopSweep, type SearchErrorReason, type SweepState,
 } from '@homeradar/shared/core/sweep';
 import type { ListingObservation, SweepOutcome } from '@homeradar/shared/shared/types';
 import { batchFor, finishFor, settledRuns, toWire } from './outgoing';
@@ -10,6 +10,8 @@ import type { ReaderMessage } from './reader';
 import type { ConnectorTiming } from './timing';
 
 export const SWEEP_RUNNING = 'Giro già in corso';
+
+const REASON_TEXT: Record<SearchErrorReason, string> = { timeout: 'pagina non arrivata in tempo', unreadable: 'annunci non letti' };
 
 /** Stato salvato in storage.session: sopravvive al riavvio del service worker, non a quello del browser. */
 export interface RunnerState {
@@ -43,6 +45,8 @@ export interface RunnerDeps {
   /** Piano dal server; lancia un Error col messaggio del server. */
   plan(): Promise<SweepPlan>;
   enqueue(o: Outgoing): Promise<void>;
+  /** Errore del giro per il server (finestra che non si apre, ricerca non riuscita); non aspetta e non lancia. */
+  reportError(message: string, context?: string): void;
 }
 
 type PageMessage = Extract<ReaderMessage, { type: 'page' }>;
@@ -92,6 +96,13 @@ export function createRunner(d: RunnerDeps) {
   async function enqueueAll(items: Outgoing[]): Promise<void> {
     for (const o of items) await d.enqueue(o);
   }
+  /** Esiti delle ricerche chiuse fra i due stati; quelle finite in errore si segnalano anche come errori. */
+  async function settle(before: SweepState, after: SweepState): Promise<void> {
+    after.runs.forEach((r, i) => {
+      if (r.outcome === 'error' && before.runs[i]?.outcome !== 'error') d.reportError(`Ricerca non riuscita: ${REASON_TEXT[r.reason ?? 'timeout']}`, r.spec.portal);
+    });
+    await enqueueAll(settledRuns(before, after));
+  }
 
   async function go(index: number): Promise<void> {
     if (!st) return;
@@ -122,7 +133,7 @@ export function createRunner(d: RunnerDeps) {
     const before = st.sweep;
     st.awaiting = false;
     st.sweep = onTimeout(before);
-    await enqueueAll(settledRuns(before, st.sweep));
+    await settle(before, st.sweep);
     await d.saveState(st);
     await advance();
   }
@@ -159,7 +170,16 @@ export function createRunner(d: RunnerDeps) {
       const index = nextStep(sweep)!;
       sweep = beginStep(sweep, index);
       const expectedUrl = stepUrl(sweep, index);
-      const { windowId, tabId } = await d.openWindow(expectedUrl);
+      let ids: { windowId: number; tabId: number };
+      try {
+        ids = await d.openWindow(expectedUrl);
+      } catch (err) {
+        // Il giro sul server è già aperto: senza la fine resterebbe aperto fino a 15 minuti e bloccherebbe il «Cerca» successivo.
+        await d.enqueue(finishFor(plan.sweepId, 'interrupted'));
+        d.reportError(`Finestra del giro non aperta: ${err instanceof Error ? err.message : String(err)}`);
+        throw err;
+      }
+      const { windowId, tabId } = ids;
       st = { sweep, windowId, tabId, awaiting: true, expectedUrl, previousUrl: null, pageObs: [], newestId: null };
       stopKeepAlive = d.keepAlive();
       await d.saveState(st);
@@ -202,7 +222,7 @@ export function createRunner(d: RunnerDeps) {
           report, observations: s.pageObs, ...(s.newestId != null ? { newestId: s.newestId } : {}),
         }));
       }
-      await enqueueAll(settledRuns(before, s.sweep));
+      await settle(before, s.sweep);
       s.pageObs = [];
       s.newestId = null;
       await d.saveState(s);

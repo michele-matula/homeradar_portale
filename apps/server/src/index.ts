@@ -1,12 +1,18 @@
 import type { Env } from './env';
+import { recordServerError } from './errors';
 import { fail, json, route, sameOrigin, type Route } from './http';
+import { adminControlRoutes } from './routes/admin-control';
 import { adminUserRoutes } from './routes/admin-users';
 import { authRoutes } from './routes/auth';
 import { connectorRoutes } from './routes/connector';
 import { deviceRoutes } from './routes/devices';
+import { errorRoutes } from './routes/errors';
 import { leadRoutes } from './routes/leads';
 
-const routes: Route[] = [route('GET', '/api/health', async () => json({ ok: true })), ...authRoutes, ...adminUserRoutes, ...leadRoutes, ...deviceRoutes];
+const routes: Route[] = [
+  route('GET', '/api/health', async () => json({ ok: true })),
+  ...authRoutes, ...adminUserRoutes, ...adminControlRoutes, ...leadRoutes, ...deviceRoutes, ...errorRoutes,
+];
 
 async function dispatch(req: Request, env: Env, path: string, list: Route[]): Promise<Response> {
   for (const r of list) {
@@ -34,6 +40,7 @@ export default {
         return api ? await handleApi(req, env, pathname) : await dispatch(req, env, pathname, connectorRoutes);
       } catch (e) {
         console.error(e);
+        await recordServerError(env, e, pathname, Date.now());
         return fail(500, 'Errore interno');
       }
     }

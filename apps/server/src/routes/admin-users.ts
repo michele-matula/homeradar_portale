@@ -1,6 +1,7 @@
 import { CreateUserBody, UpdateUserBody, type AdminUser } from '@homeradar/shared/api/types';
 import { comuneInfo } from '@homeradar/shared/core/comuni';
 import type { Env } from '../env';
+import { anonymizeErrors } from '../errors';
 import { fail, json, readBody, route, type Handler, type Route } from '../http';
 import { authenticate } from '../session';
 import { EmailTaken, findUserById, insertUser, issueToken, listUsers, toComuneRefs, type UserRow } from '../users';
@@ -24,7 +25,7 @@ export async function requireAdmin(req: Request, env: Env, now: number): Promise
 }
 
 /** Rotta riservata all'admin: l'handler riceve anche l'istante della richiesta. */
-const admin = (method: string, pattern: string, h: (req: Request, env: Env, params: Record<string, string>, now: number) => Promise<Response>): Route => {
+export const admin = (method: string, pattern: string, h: (req: Request, env: Env, params: Record<string, string>, now: number) => Promise<Response>): Route => {
   const wrapped: Handler = async (req, env, params) => {
     const now = Date.now();
     const auth = await requireAdmin(req, env, now);
@@ -114,7 +115,8 @@ export const adminUserRoutes: Route[] = [
   admin('DELETE', '/api/admin/users/:id', async (_req, env, { id }) => {
     const u = await target(env, id!);
     if (u instanceof Response) return u;
-    await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(u.id).run();
+    // I suoi errori restano, senza agente né dispositivo, sommati agli anonimi uguali.
+    await env.DB.batch([...anonymizeErrors(env.DB, u.id), env.DB.prepare('DELETE FROM users WHERE id = ?').bind(u.id)]);
     return new Response(null, { status: 204 });
   }),
 ];
