@@ -20,7 +20,7 @@ interface ErrorRow {
 
 const rows = async () => (await env.DB.prepare('SELECT * FROM errors ORDER BY id').all<ErrorRow>()).results;
 const report = (errors: { message: string; context?: string; at: number }[], headers: Record<string, string> = {}) =>
-  fetchApi('POST', '/api/errors', { version: 'abc', errors }, headers);
+  fetchApi('POST', '/api/errors', { version: 'abc1234', errors }, headers);
 const one = (message: string, at = Date.now()) => [{ message, at }];
 
 describe('errori del portale', () => {
@@ -33,7 +33,7 @@ describe('errori del portale', () => {
     );
     expect(r.status).toBe(204);
     const [e] = await rows();
-    expect(e).toMatchObject({ source: 'portal', version: 'abc', message: 'Errore su <url> prezzo # <testo>', user_id: u.id, device_id: '', context: '/lead/:chiave', count: 1 });
+    expect(e).toMatchObject({ source: 'portal', version: 'abc1234', message: 'Errore su <url> prezzo # <testo>', user_id: u.id, device_id: '', context: '/lead/:chiave', count: 1 });
   });
 
   it('lo stesso errore due volte è un gruppo solo', async () => {
@@ -136,5 +136,57 @@ describe('agente eliminato', () => {
     const all = await rows();
     expect(all.every((e) => e.user_id === '' && e.device_id === '')).toBe(true);
     expect(all.map((e) => e.message).sort()).toEqual(['Comune', 'Solo suo']);
+  });
+});
+
+describe('revisione finale', () => {
+  it('i token di invito e reimpostazione non finiscono negli errori, né nel messaggio né nel contesto', async () => {
+    const token = 'Zx9_kLmN-oPqRsTuVwXyZaBcDeFgHiJk';
+    await report([{ message: `API POST /api/tokens/${token}: 500 Errore interno`, context: `/attiva/${token}`, at: Date.now() }]);
+    await env.DB.prepare('ALTER TABLE tokens RENAME TO tokens_x').run();
+    try {
+      expect((await fetchApi('GET', `/api/tokens/${token}`)).status).toBe(500);
+    } finally {
+      await env.DB.prepare('ALTER TABLE tokens_x RENAME TO tokens').run();
+    }
+    const all = await rows();
+    expect(JSON.stringify(all)).not.toContain(token);
+    expect(all.find((e) => e.source === 'portal')).toMatchObject({ message: 'API POST /api/tokens/:token: 500 Errore interno', context: '/attiva/:token' });
+    expect(all.find((e) => e.source === 'server')!.context).toBe('/api/tokens/:token');
+  });
+
+  it('senza sessione: indirizzi IPv6 della stessa /64 contano insieme', async () => {
+    for (const ip of ['2001:db8:1:2::a', '2001:db8:1:2::b']) {
+      const batch = Array.from({ length: 20 }, (_, i) => ({ message: `${ip}-${i}`, at: Date.now() }));
+      await report(batch, { 'CF-Connecting-IP': ip });
+    }
+    expect(await rows()).toHaveLength(30);
+  });
+
+  it('senza sessione: al più 200 l\'ora in tutto, da qualunque IP', async () => {
+    for (let k = 0; k < 11; k++) {
+      const batch = Array.from({ length: 20 }, (_, i) => ({ message: `${k}-${i}`, at: Date.now() }));
+      await report(batch, { 'CF-Connecting-IP': `203.0.113.${k}` });
+    }
+    expect(await rows()).toHaveLength(200);
+  });
+
+  it('senza sessione la versione inventata non crea gruppi nuovi', async () => {
+    await fetchApi('POST', '/api/errors', { version: 'qualunque-cosa', errors: one('x') });
+    await fetchApi('POST', '/api/errors', { version: 'abc1234', errors: one('x') });
+    expect((await rows()).map((e) => e.version).sort()).toEqual(['abc1234', 'sconosciuta']);
+  });
+
+  it('agente eliminato: i conteggi si sommano al gruppo anonimo, non si perdono', async () => {
+    const admin = await loginAs('admin');
+    const u = await loginAs('agent');
+    const t0 = Date.now() - 3 * 86_400_000;
+    await report(one('Comune', t0), { Cookie: u.cookie });
+    await report(one('Comune'), { Cookie: u.cookie });
+    await report(one('Comune'));
+    await fetchApi('DELETE', `/api/admin/users/${u.id}`, undefined, { Cookie: admin.cookie });
+    const all = await rows();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ user_id: '', count: 3, first_at: t0 });
   });
 });

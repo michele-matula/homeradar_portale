@@ -30,7 +30,7 @@ export function controlHealth(r: Omit<ControlRow, 'health' | 'reasons'>, now: nu
     if (s.outcome && s.outcome !== 'completed') found.push(['warn', `Ultimo giro: ${OUTCOME_TEXT[s.outcome]}`]);
     if (s.problems > 0) found.push(['warn', `Ultimo giro: ${s.problems} ${s.problems === 1 ? 'ricerca' : 'ricerche'} con problemi`]);
   }
-  if (r.errors7d > 0) found.push(['warn', `${r.errors7d} ${r.errors7d === 1 ? 'errore' : 'errori'} negli ultimi 7 giorni`]);
+  if (r.errors7d > 0) found.push(['warn', `${r.errors7d} ${r.errors7d === 1 ? 'errore diverso' : 'errori diversi'} negli ultimi 7 giorni`]);
   if (r.lastSeenAt == null) found.push(['warn', 'Mai entrato']);
   else if (now - r.lastSeenAt > QUIET_MS) found.push(['warn', `Nessun accesso da ${days(now, r.lastSeenAt)} giorni`]);
   const health: Health = found.some(([h]) => h === 'bad') ? 'bad' : found.length ? 'warn' : 'ok';
@@ -75,7 +75,7 @@ export async function controlRows(db: D1Database, now: number, userId?: string):
       WHERE s.id IN (SELECT (SELECT x.id FROM sweeps x WHERE x.user_id = u.value ORDER BY x.started_at DESC LIMIT 1) FROM json_each(?) u)`).bind(ids),
     db.prepare('SELECT user_id, COUNT(*) AS n FROM sweeps WHERE started_at > ? AND user_id IN (SELECT value FROM json_each(?)) GROUP BY user_id')
       .bind(now - 30 * DAY_MS, ids),
-    db.prepare('SELECT user_id, SUM(count) AS n FROM errors WHERE last_at > ? AND user_id IN (SELECT value FROM json_each(?)) GROUP BY user_id')
+    db.prepare('SELECT user_id, COUNT(*) AS n FROM errors WHERE last_at > ? AND user_id IN (SELECT value FROM json_each(?)) GROUP BY user_id')
       .bind(now - QUIET_MS, ids),
   ]);
   type DeviceRow = { id: string; user_id: string; name: string; version: string | null; created_at: number; last_seen_at: number | null; last_good: number | null };

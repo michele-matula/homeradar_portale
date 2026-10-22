@@ -1,3 +1,4 @@
+import { scrubPaths } from '@homeradar/shared/api/paths';
 import { MAX_ERRORS_PER_REPORT } from '@homeradar/shared/api/types';
 
 /** Gli errori di questo intervallo partono insieme: un errore in ciclo non manda una richiesta per volta. */
@@ -6,13 +7,8 @@ const SEND_AFTER_MS = 1000;
 let pending: { message: string; context: string; at: number }[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 
-/** Percorso senza chiavi dei lead, id e token: gli errori della stessa pagina si raggruppano e non portano dati. */
-export function routeOf(path: string): string {
-  return path
-    .replace(/^\/lead\/[^/]+$/, '/lead/:chiave')
-    .replace(/^\/(attiva|reimposta)\/[^/]+$/, '/$1/:token')
-    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id');
-}
+/** Percorso senza chiavi dei lead, id e token (il server lo ripulisce di nuovo: il client non è fidato). */
+export const routeOf = scrubPaths;
 
 function send(): void {
   timer = null;

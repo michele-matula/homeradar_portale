@@ -1,6 +1,7 @@
 import { CreateUserBody, UpdateUserBody, type AdminUser } from '@homeradar/shared/api/types';
 import { comuneInfo } from '@homeradar/shared/core/comuni';
 import type { Env } from '../env';
+import { anonymizeErrors } from '../errors';
 import { fail, json, readBody, route, type Handler, type Route } from '../http';
 import { authenticate } from '../session';
 import { EmailTaken, findUserById, insertUser, issueToken, listUsers, toComuneRefs, type UserRow } from '../users';
@@ -114,11 +115,8 @@ export const adminUserRoutes: Route[] = [
   admin('DELETE', '/api/admin/users/:id', async (_req, env, { id }) => {
     const u = await target(env, id!);
     if (u instanceof Response) return u;
-    // I suoi errori restano, senza agente né dispositivo; OR REPLACE: se c'è già un gruppo anonimo uguale, prende il suo posto.
-    await env.DB.batch([
-      env.DB.prepare("UPDATE OR REPLACE errors SET user_id = '', device_id = '' WHERE user_id = ?").bind(u.id),
-      env.DB.prepare('DELETE FROM users WHERE id = ?').bind(u.id),
-    ]);
+    // I suoi errori restano, senza agente né dispositivo, sommati agli anonimi uguali.
+    await env.DB.batch([...anonymizeErrors(env.DB, u.id), env.DB.prepare('DELETE FROM users WHERE id = ?').bind(u.id)]);
     return new Response(null, { status: 204 });
   }),
 ];

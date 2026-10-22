@@ -47,7 +47,7 @@ describe('controlHealth', () => {
 
   it('errori recenti e accesso vecchio: arancio', () => {
     const r = controlHealth(base({ errors7d: 3, lastSeenAt: NOW - 12 * DAY }), NOW);
-    expect(r).toEqual({ health: 'warn', reasons: ['3 errori negli ultimi 7 giorni', 'Nessun accesso da 12 giorni'] });
+    expect(r).toEqual({ health: 'warn', reasons: ['3 errori diversi negli ultimi 7 giorni', 'Nessun accesso da 12 giorni'] });
   });
 
   it('giro in corso e il resto a posto: verde', () => {
@@ -200,5 +200,17 @@ describe('revoca dall\'admin', () => {
     const r = await fetchApi('DELETE', `/api/admin/devices/${d.id}`, undefined, { Cookie: admin.cookie });
     expect(r.status).toBe(404);
     expect(await r.json()).toEqual({ error: 'Dispositivo non trovato' });
+  });
+});
+
+describe('errori 7 gg', () => {
+  it('contano i gruppi attivi negli ultimi 7 giorni, non le occorrenze vecchie', async () => {
+    const admin = await loginAs('admin');
+    const u = await loginAs('agent');
+    await env.DB.prepare("INSERT INTO errors (source, version, message, user_id, count, first_at, last_at) VALUES ('portal', 'v', 'Vecchio e ripetuto', ?, 500, ?, ?)")
+      .bind(u.id, Date.now() - 60 * DAY, Date.now() - DAY).run();
+    const [row] = await get<ControlRow[]>(admin.cookie, '/api/admin/control');
+    expect(row!.errors7d).toBe(1);
+    expect(row!.reasons).toContain('1 errore diverso negli ultimi 7 giorni');
   });
 });
