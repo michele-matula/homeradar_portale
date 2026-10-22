@@ -1,0 +1,5 @@
+.output/
+.output-e2e/
+.wxt/
+test-results/
+playwright-report/

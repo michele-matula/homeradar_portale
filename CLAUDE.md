@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-HomeRadar Portale è il successore web dell'estensione HomeRadar (repository `homeradar`): gli agenti immobiliari accedono a un portale, vedono i lead dei privati della loro zona da un archivio condiviso e lavorano stati, note e richiami. Sul PC dell'agente un connettore (estensione senza interfaccia, tappa 3) fa il giro delle ricerche, solo quando lo lancia l'agente e solo nella scheda del giro. Conversazione e testi dell'interfaccia in italiano.
+HomeRadar Portale è il successore web dell'estensione HomeRadar (repository `homeradar`): gli agenti immobiliari accedono a un portale, vedono i lead dei privati della loro zona da un archivio condiviso e lavorano stati, note e richiami. Sul PC dell'agente un connettore (estensione senza interfaccia, `apps/connector`) fa il giro delle ricerche, solo quando lo lancia l'agente e solo nella scheda del giro. Conversazione e testi dell'interfaccia in italiano.
 
 ## Comandi
 
@@ -13,16 +13,20 @@ npm run build                     # SPA in apps/web/dist (servita dal Worker)
 npm test -w packages/shared       # un solo workspace (i test delle fixture vanno lanciati così: leggono percorsi relativi al pacchetto)
 npm test -w apps/server           # Worker con D1 locale (runtime Workers)
 npm test -w apps/web
+npm test -w apps/connector
+npm run test:e2e -w apps/connector   # Playwright: build di prova (.output-e2e), portale finto su localhost:8799
+WXT_PORTAL_URL=http://localhost:8787 npm run build -w apps/connector   # estensione in apps/connector/.output/chrome-mv3
 npx vitest run test/auth.test.ts  # un file, dentro il workspace
 npm run dev -w apps/web           # SPA su :5173, /api passa a :8787
 ```
 
-Server locale, deploy e account admin: `docs/deploy.md`.
+Server locale, deploy, account admin e connettore: `docs/deploy.md`.
 
 ## Struttura
 
 - `packages/shared` (`@homeradar/shared`): logica pura **copiata** da `homeradar` (adattatori, `core/`, tipi) e da qui in poi evolve in questo repository; più `src/api/types.ts` (tipi e schemi zod delle API, usati da server e web) e `src/api/connector.ts` (schemi di `/connector/*`: è la lista dei campi che si possono salvare). Nei sorgenti gli import sono **relativi** (niente alias `@/`), così server e web importano `@homeradar/shared/core/comuni` senza configurare alias; i test usano l'alias `@/`.
-- `apps/server`: Worker Cloudflare. `src/index.ts` (dispatch: `/api/*` alle rotte del portale, `/connector/*` a quelle del connettore, il resto agli asset), `src/http.ts` (`json`, `fail`, `readBody`, `route`, controllo dell'origine), `src/crypto.ts` (PBKDF2, token), `src/users.ts` (utenti e link monouso), `src/session.ts` (sessioni, cookie, `userRoute`), `src/device.ts` (token del connettore, `deviceRoute`), `src/rate-limit.ts`, `src/archive.ts` (righe D1 ↔ tipi condivisi, zona dell'agente), `src/settings.ts`, `src/leads.ts` (lead, stato, separazioni), `src/sweeps.ts` (piano, freschezza, giri, esiti, "non più visto", avanzamento), `src/ingest.ts` (lotti), `src/routes/*` (rotte per area). `/connector/*` si autentica con `Authorization: Bearer <token del dispositivo>` e non controlla l'`Origin`. Liste in SQL con un solo parametro: `IN (SELECT value FROM json_each(?))` (D1 ammette al più 100 parametri). Migrazioni D1 in `migrations/`: per cambiare lo schema aggiungi un file nuovo, non modificare quelli esistenti. `scripts/create-admin.mjs` crea l'account admin.
+- `apps/server`: Worker Cloudflare. `src/index.ts` (dispatch: `/api/*` alle rotte del portale, `/connector/*` a quelle del connettore, il resto agli asset), `src/http.ts` (`json`, `fail`, `readBody`, `route`, controllo dell'origine), `src/crypto.ts` (PBKDF2, token), `src/users.ts` (utenti e link monouso), `src/session.ts` (sessioni, cookie, `userRoute`), `src/device.ts` (token del connettore, `deviceRoute`), `src/rate-limit.ts`, `src/archive.ts` (righe D1 ↔ tipi condivisi, zona dell'agente), `src/settings.ts`, `src/leads.ts` (lead, stato, separazioni), `src/sweeps.ts` (piano, freschezza, giri, esiti, "non più visto", avanzamento), `src/ingest.ts` (lotti), `src/routes/*` (rotte per area). `/connector/*` si autentica con `Authorization: Bearer <token del dispositivo>` e non controlla l'`Origin`; fa eccezione `POST /connector/link`, che scambia il codice monouso (5 minuti, da `POST /api/devices/link-code`) con il token. Liste in SQL con un solo parametro: `IN (SELECT value FROM json_each(?))` (D1 ammette al più 100 parametri). Migrazioni D1 in `migrations/`: per cambiare lo schema aggiungi un file nuovo, non modificare quelli esistenti. `scripts/create-admin.mjs` crea l'account admin.
+- `apps/connector`: estensione WXT (MV3) senza interfaccia. L'indirizzo del portale entra nella build (`WXT_PORTAL_URL`, obbligatorio): è l'unica origine dei messaggi esterni (`externally_connectable`) e la base delle API. `src/entrypoints/background.ts` (collega tutto), `src/external.ts` (messaggi del portale: `ping`, `link`, `startSweep`, `stopSweep`; schemi in `packages/shared/src/api/connector-messages.ts`), `src/runner.ts` (giro: una pagina = un lotto in coda, poi gli esiti delle ricerche e la fine), `src/queue.ts` + `src/queue-store.ts` (coda in IndexedDB: un invio alla volta in ordine, attese crescenti, oltre 24 ore solo su richiesta; 401 = scollegato, coda svuotata), `src/reader.ts` + `src/content.ts` (i content script leggono solo se il background dice che è la scheda del giro), `src/outgoing.ts` (solo privati e solo i campi di `ObservationSchema`), `src/bridge.ts` (da `homeradar`), `src/timing.ts` (tempi; quelli di prova solo con `WXT_SWEEP_FAST=1`, mai in `packages/shared`). La chiave pubblica del manifest (`src/key.ts`) fissa l'ID, copiato in `CONNECTOR_ID`; un test controlla che coincidano. I test unitari ricevono le API del browser come dipendenze (niente plugin di WXT in Vitest). Gli e2e Playwright non possono importare moduli condivisi che caricano `comuni.json`.
 - `apps/web`: SPA React (Vite), nessuna libreria di routing (`src/router.ts`); parla col server solo tramite `src/api.ts`. Pagine in `src/pages/`, componenti in `src/components/`.
 
 ## Vincoli da rispettare

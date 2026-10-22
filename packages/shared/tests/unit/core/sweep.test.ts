@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginStep, buildResult, completeScopes, createSweep, finishSweep, MAX_PAGES_PER_PORTAL, MAX_PAGES_PER_SEARCH, markSeen, nextStep,
-  onPageRead, onTimeout, pauseMs, progressOf, samePage, skipDisabled, stepUrl, stopSweep, type SweepState,
+  onPageRead, onTimeout, PAGE_TIMEOUT_MS, PAUSE_MS, pauseMs, progressOf, samePage, skipDisabled, stepUrl, stopSweep, type SweepState,
 } from '@/core/sweep';
 import type { PageReport, Portal, SearchSpec } from '@/shared/types';
 import { obs } from './helpers';
@@ -154,9 +154,14 @@ describe('giro: esito', () => {
   });
 
   it('pause nell\'intervallo del portale', () => {
-    expect(pauseMs('immobiliare', () => 0)).toBe(4000);
-    expect(pauseMs('immobiliare', () => 0.999)).toBeLessThan(10_000);
-    expect(pauseMs('idealista', () => 0)).toBe(8000);
+    expect(pauseMs(PAUSE_MS.immobiliare, () => 0)).toBe(4000);
+    expect(pauseMs(PAUSE_MS.immobiliare, () => 0.999)).toBeLessThan(10_000);
+    expect(pauseMs(PAUSE_MS.idealista, () => 0)).toBe(8000);
+    expect(pauseMs([100, 200], () => 0.5)).toBe(150);
+  });
+
+  it('tempi normali: il pacchetto condiviso non legge l\'ambiente', () => {
+    expect(PAGE_TIMEOUT_MS).toBe(45_000);
   });
 });
 

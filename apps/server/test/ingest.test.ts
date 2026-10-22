@@ -146,5 +146,13 @@ describe('POST /connector/batches', () => {
     expect(await env.DB.prepare('SELECT portal, portal_id, created_at FROM calibration_points').first())
       .toEqual({ portal: 'idealista', portal_id: newestId, created_at: utcDay(Date.now()) });
   });
+
+  it('la ricerca inizia con la lettura più vecchia, anche se il suo lotto arriva dopo', async () => {
+    const started = (await n('SELECT started_at AS n FROM sweeps WHERE id = ?', a.plan.sweepId))!;
+    await new Promise((r) => setTimeout(r, 5));
+    expect((await send(a, batch(a, [obs(1)], { page: 2 }))).status).toBe(200);
+    expect((await send(a, batch(a, [obs(2)], { readAt: started + 1 }))).status).toBe(200);
+    expect(await n('SELECT started_at AS n FROM search_runs WHERE sweep_id = ? AND search_key = ?', a.plan.sweepId, keyOf(a, 'immobiliare'))).toBe(started + 1);
+  });
 });
 

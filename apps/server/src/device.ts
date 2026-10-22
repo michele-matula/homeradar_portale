@@ -1,3 +1,4 @@
+import type { DeviceInfo } from '@homeradar/shared/api/connector';
 import type { Env } from './env';
 import { hashToken, newToken } from './crypto';
 import { fail, route, type Handler, type Route } from './http';
@@ -7,15 +8,53 @@ import { findUserById, type UserRow } from './users';
 const LAST_SEEN_EVERY_MS = 10 * 60_000;
 const NOT_LINKED = 'Connettore non collegato';
 
+/** Codice che il portale passa al connettore per collegarlo: monouso. */
+export const LINK_CODE_TTL_MS = 5 * 60_000;
+
 /** Nuovo dispositivo dell'utente: il token si restituisce una volta sola, nel database c'è solo il suo hash. */
-export async function insertDevice(db: D1Database, userId: string, name: string, now: number): Promise<{ id: string; token: string }> {
+export async function insertDevice(
+  db: D1Database, userId: string, name: string, now: number, version: string | null = null,
+): Promise<{ id: string; token: string }> {
   const id = crypto.randomUUID();
   const token = newToken();
   await db
-    .prepare('INSERT INTO devices (id, user_id, name, token_hash, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(id, userId, name, await hashToken(token), now)
+    .prepare('INSERT INTO devices (id, user_id, name, token_hash, version, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(id, userId, name, await hashToken(token), version, now)
     .run();
   return { id, token };
+}
+
+/** Codice di collegamento per l'utente; nel database c'è solo il suo hash. */
+export async function createLinkCode(db: D1Database, userId: string, now: number): Promise<string> {
+  const code = newToken();
+  await db.batch([
+    db.prepare('DELETE FROM link_codes WHERE expires_at <= ?').bind(now),
+    db.prepare('INSERT INTO link_codes (code_hash, user_id, expires_at) VALUES (?, ?, ?)').bind(await hashToken(code), userId, now + LINK_CODE_TTL_MS),
+  ]);
+  return code;
+}
+
+/** Utente del codice, che si consuma: due richieste con lo stesso codice non passano entrambe. null se scaduto o ignoto. */
+export async function redeemLinkCode(db: D1Database, code: string, now: number): Promise<string | null> {
+  const r = await db.prepare('DELETE FROM link_codes WHERE code_hash = ? AND expires_at > ? RETURNING user_id')
+    .bind(await hashToken(code), now)
+    .first<{ user_id: string }>();
+  return r?.user_id ?? null;
+}
+
+export async function listDevices(db: D1Database, userId: string): Promise<DeviceInfo[]> {
+  const { results } = await db
+    .prepare('SELECT id, name, created_at, last_seen_at FROM devices WHERE user_id = ? ORDER BY created_at')
+    .bind(userId)
+    .all<{ id: string; name: string; created_at: number; last_seen_at: number | null }>();
+  return results.map((d) => ({ id: d.id, name: d.name, createdAt: d.created_at, lastSeenAt: d.last_seen_at }));
+}
+
+/** Scollega un dispositivo dell'utente; false se non è suo. I suoi giri restano, senza dispositivo. */
+export async function deleteDevice(db: D1Database, userId: string, id: string): Promise<boolean> {
+  // RETURNING, non meta.changes: D1 conta anche i giri aggiornati da ON DELETE SET NULL.
+  const r = await db.prepare('DELETE FROM devices WHERE id = ? AND user_id = ? RETURNING id').bind(id, userId).first();
+  return r != null;
 }
 
 export interface DeviceAuth {

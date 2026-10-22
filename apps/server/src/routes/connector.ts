@@ -1,11 +1,26 @@
-import { BatchBody, FinishBody, RunBody, StartSweepBody } from '@homeradar/shared/api/connector';
-import { deviceRoute } from '../device';
-import { fail, json, readBody, type Route } from '../http';
+import { BatchBody, FinishBody, LinkBody, RunBody, StartSweepBody } from '@homeradar/shared/api/connector';
+import { deviceRoute, insertDevice, redeemLinkCode } from '../device';
+import { fail, json, readBody, route, type Route } from '../http';
 import { ingestBatch, MAX_BATCH_BYTES } from '../ingest';
 import { finishSweep, reportRun, startSweep } from '../sweeps';
+import { findUserById } from '../users';
 
 /** Rotte del connettore (`/connector/*`): token di dispositivo, nessun controllo dell'Origin. */
 export const connectorRoutes: Route[] = [
+  // L'unica rotta senza token: il codice monouso avuto dal portale diventa il token del dispositivo.
+  route('POST', '/connector/link', async (req, env) => {
+    const body = await readBody(req, LinkBody);
+    if (body instanceof Response) return body;
+    const now = Date.now();
+    const userId = await redeemLinkCode(env.DB, body.code, now);
+    const user = userId && (await findUserById(env.DB, userId));
+    if (!user) return fail(400, 'Codice di collegamento non valido o scaduto');
+    if (user.status !== 'active') return fail(403, 'Account sospeso');
+    const { token } = await insertDevice(env.DB, user.id, body.name, now, body.version);
+    // L'account del token: il portale lo confronta con quello di chi è entrato (PC condiviso, cambio d'account).
+    return json({ token, userId: user.id }, 201);
+  }),
+
   deviceRoute('POST', '/connector/sweeps', async (req, env, _p, { user, deviceId, now }) => {
     const body = await readBody(req, StartSweepBody);
     if (body instanceof Response) return body;

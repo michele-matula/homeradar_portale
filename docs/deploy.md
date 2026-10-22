@@ -35,3 +35,21 @@ Applica sempre le migrazioni **prima** del deploy: il codice nuovo può leggere 
 3. Admin locale: come al punto 6 del primo deploy, con `--local` al posto di `--remote` nel comando stampato.
 
 I cookie di sessione sono `Secure`: Chrome li accetta su `http://localhost`, quindi in locale apri `http://localhost:8787` (o :5173).
+
+## Migrazioni in sospeso in produzione
+
+Al 2026-10-22 in produzione è applicata solo `0001_accounts.sql`. Prima del prossimo deploy del Worker vanno applicate `0002_archive.sql`, `0003_archive_fixes.sql` e `0004_link_codes.sql`: basta il comando del punto 1 degli aggiornamenti, che le applica in ordine. Per controllare: `npx wrangler d1 migrations list homeradar-portale --remote`.
+
+## Connettore
+
+Il connettore (`apps/connector`) è un'estensione che si costruisce per un portale preciso: l'indirizzo del portale entra nella build (API e unica pagina che può parlargli).
+
+1. Dalla radice: `WXT_PORTAL_URL=https://homeradar-portale.<account>.workers.dev npm run build -w apps/connector`. Senza `WXT_PORTAL_URL` la build si ferma.
+2. In Chrome (o Edge): `chrome://extensions` → modalità sviluppatore → «Carica estensione non pacchettizzata» → `apps/connector/.output/chrome-mv3`.
+3. Apri il portale e premi «Cerca»: il portale collega da solo il connettore all'account e lo mostra in «I tuoi computer».
+
+L'ID dell'estensione è fisso (chiave pubblica in `apps/connector/src/key.ts`, ID in `CONNECTOR_ID`): il portale lo usa per parlarle. Alla pubblicazione sul Web Store (non in elenco) si sostituiscono chiave e ID con quelli che dà il Web Store.
+
+In locale: SPA compilata e `npx wrangler dev`, poi `WXT_PORTAL_URL=http://localhost:8787 npm run build -w apps/connector`. Apri il portale da `http://localhost:8787`: i messaggi arrivano al connettore solo da quell'origine (non da :5173).
+
+Test end-to-end del connettore: `npm run test:e2e -w apps/connector` (costruisce la versione di prova in `.output-e2e`, con tempi brevissimi e portale finto su `localhost:8799`: non va mai caricata in Chrome per lavorare).
