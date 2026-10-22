@@ -2,12 +2,15 @@ import type { Me } from '@homeradar/shared/api/types';
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { AdminUsers } from './pages/AdminUsers';
+import { Control } from './pages/Control';
+import { ControlAgent } from './pages/ControlAgent';
+import { Errors } from './pages/Errors';
 import { Leads } from './pages/Leads';
 import { Login } from './pages/Login';
 import { Privacy } from './pages/Privacy';
 import { Settings } from './pages/Settings';
 import { TokenPage } from './pages/TokenPage';
-import { leadKeyOf, navigate, usePath } from './router';
+import { controlUserOf, leadKeyOf, navigate, usePath } from './router';
 
 /** Pagine aperte a tutti: link d'invito, reimpostazione, informativa. */
 const PUBLIC = /^\/(attiva|reimposta)\/[^/]+$|^\/informativa$/;
@@ -50,7 +53,13 @@ export function App() {
   if (token) return <TokenPage mode={token[1] === 'attiva' ? 'invite' : 'reset'} token={token[2]!} onDone={signedIn} />;
   if (me === undefined) return <div className="page page--center" aria-busy="true" />;
   if (me === null) return <Login onDone={signedIn} />;
-  if (path === '/admin/utenti' && me.role === 'admin') return <AdminUsers me={me} onSignOut={signedOut} />;
+  if (me.role === 'admin') {
+    if (path === '/admin/utenti') return <AdminUsers me={me} onSignOut={signedOut} />;
+    if (path === '/admin/controllo') return <Control me={me} onSignOut={signedOut} />;
+    if (path === '/admin/errori') return <Errors me={me} onSignOut={signedOut} />;
+    const userId = controlUserOf(path);
+    if (userId) return <ControlAgent key={userId} me={me} onSignOut={signedOut} userId={userId} />;
+  }
   if (path === '/impostazioni') return <Settings me={me} onSignOut={signedOut} />;
   // `/` e `/lead/<chiave>` sono la stessa pagina: aprire e chiudere una scheda non perde filtri e lista.
   return <Leads me={me} onSignOut={signedOut} />;

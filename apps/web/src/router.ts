@@ -46,3 +46,16 @@ export function leadKeyOf(path: string): string | null {
     return null;
   }
 }
+
+export const controlPath = (userId: string): string => `/admin/controllo/${encodeURIComponent(userId)}`;
+
+/** Agente della scheda `/admin/controllo/<id>`; null se il percorso non è una scheda o non si decodifica. */
+export function controlUserOf(path: string): string | null {
+  const m = /^\/admin\/controllo\/([^/]+)$/.exec(path);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]!);
+  } catch {
+    return null;
+  }
+}

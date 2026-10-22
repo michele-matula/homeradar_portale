@@ -270,3 +270,25 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: none; box-
 }
 .export { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; background: var(--bg); border-top: 1px solid var(--border); }
 .export__hint { margin-left: auto; font-size: 12px; color: var(--muted); }
+
+/* Admin: tabelle di «Controllo» ed «Errori». Sotto i 900 px scorrono dentro il loro riquadro, non la pagina. */
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; }
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th, .table td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+.table th { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.table tr:last-child td { border-bottom: 0; }
+.table--rows tbody tr { cursor: pointer; }
+.table--rows tbody tr:hover { background: var(--surface-muted); }
+.table__message { white-space: pre-wrap; word-break: break-word; font-size: 13px; }
+.health { border-left: 4px solid transparent; }
+.health--ok { border-left-color: var(--ok); }
+.health--warn { border-left-color: var(--medium); }
+.health--bad { border-left-color: var(--high); }
+.table .health > td:first-child { border-left: 4px solid; border-left-color: inherit; }
+.health__ok { color: var(--ok); font-size: 13px; }
+.health__bad { color: var(--high); font-weight: 600; }
+.reasons { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+.health--bad .reasons { color: var(--high); }
+.health--warn .reasons { color: var(--medium); }
+.sweeps { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.sweeps .btn { text-align: left; height: auto; padding-block: 5px; }
