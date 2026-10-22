@@ -39,7 +39,10 @@ export function batchFor(a: {
 export function settledRuns(before: SweepState, after: SweepState): Outgoing[] {
   return after.runs.flatMap((r, i) =>
     before.runs[i]?.outcome === 'pending' && r.outcome !== 'pending' && r.outcome !== 'skipped'
-      ? [{ path: '/connector/runs', body: { sweepId: after.id, searchKey: r.spec.key, outcome: r.outcome, pages: r.pages, privates: r.privates } }]
+      ? [{
+        path: '/connector/runs',
+        body: { sweepId: after.id, searchKey: r.spec.key, outcome: r.outcome, pages: r.pages, privates: r.privates, ...(r.reason ? { reason: r.reason } : {}) },
+      }]
       : [],
   );
 }

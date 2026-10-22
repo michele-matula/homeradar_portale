@@ -170,8 +170,8 @@ export async function reportRun(db: D1Database, user: UserRow, r: RunReport, now
   const run = await findRun(db, user.id, r.sweepId, r.searchKey);
   if (run instanceof Response) return run;
   await db.batch([
-    db.prepare("UPDATE search_runs SET status = ?, pages = ?, privates = ?, finished_at = ? WHERE id = ? AND status IN ('pending', 'running', 'skipped')")
-      .bind(r.outcome, r.pages, r.privates, now, run.id),
+    db.prepare("UPDATE search_runs SET status = ?, pages = ?, privates = ?, reason = ?, finished_at = ? WHERE id = ? AND status IN ('pending', 'running', 'skipped')")
+      .bind(r.outcome, r.pages, r.privates, r.reason ?? null, now, run.id),
     db.prepare('UPDATE sweeps SET last_activity_at = ? WHERE id = ?').bind(now, r.sweepId),
   ]);
   await maybeApplyMissing(db, run.id, now);

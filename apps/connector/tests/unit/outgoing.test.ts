@@ -57,3 +57,17 @@ describe('richieste per il server', () => {
     expect(FinishBody.safeParse(o.body).success).toBe(true);
   });
 });
+
+describe('motivo delle ricerche in errore', () => {
+  it('va nel corpo solo se c\'è', () => {
+    const before = createSweep([IMM, SUB], 0, SWEEP_ID);
+    const after: SweepState = {
+      ...before,
+      runs: [{ ...before.runs[0]!, outcome: 'error', reason: 'timeout' }, { ...before.runs[1]!, pages: 1, outcome: 'complete' }],
+    };
+    const [err, ok] = settledRuns(before, after);
+    expect(err!.body).toMatchObject({ outcome: 'error', reason: 'timeout' });
+    expect(RunBody.safeParse(err!.body).success).toBe(true);
+    expect(ok!.body).not.toHaveProperty('reason');
+  });
+});

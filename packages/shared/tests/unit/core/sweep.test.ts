@@ -187,3 +187,21 @@ describe('revisione: samePage', () => {
     expect(samePage(IMM.url, 'non è un url')).toBe(false);
   });
 });
+
+describe('giro: motivo delle ricerche in errore', () => {
+  it('pagina non arrivata in tempo → timeout', () => {
+    const s = onTimeout(step(createSweep([IMM], 0, 'id')));
+    expect(s.runs[0]).toMatchObject({ outcome: 'error', reason: 'timeout' });
+  });
+
+  it('annunci non letti → unreadable', () => {
+    const s = onPageRead(step(createSweep([IMM], 0, 'id')), report('immobiliare', { results: 25, privates: 3, parseErrors: 2 }));
+    expect(s.runs[0]).toMatchObject({ outcome: 'error', reason: 'unreadable' });
+  });
+
+  it('una ricerca completa non ha motivo', () => {
+    const s = onPageRead(step(createSweep([IMM], 0, 'id')), report('immobiliare', { lastPage: true }));
+    expect(s.runs[0]!.outcome).toBe('complete');
+    expect(s.runs[0]).not.toHaveProperty('reason');
+  });
+});

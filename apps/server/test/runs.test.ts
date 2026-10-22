@@ -191,3 +191,17 @@ describe('fine del giro e avanzamento', () => {
 
   it('senza sessione', async () => expect((await fetchApi('GET', '/api/sweep')).status).toBe(401));
 });
+
+describe('motivo delle ricerche in errore', () => {
+  it('si salva con l\'esito; un motivo sconosciuto è rifiutato', async () => {
+    const a = await agent();
+    const plan = await start(a);
+    const r = await fetchConnector('POST', '/connector/runs', { sweepId: plan.sweepId, searchKey: KEY, outcome: 'error', pages: 1, privates: 0, reason: 'unreadable' }, a.auth);
+    expect(r.status).toBeLessThan(300);
+    const row = await env.DB.prepare('SELECT reason FROM search_runs WHERE sweep_id = ? AND search_key = ?').bind(plan.sweepId, KEY).first<{ reason: string | null }>();
+    expect(row?.reason).toBe('unreadable');
+    const bad = await fetchConnector('POST', '/connector/runs', { sweepId: plan.sweepId, searchKey: KEY, outcome: 'error', pages: 1, privates: 0, reason: 'altro' }, a.auth);
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toEqual({ error: 'Esito non valido' });
+  });
+});

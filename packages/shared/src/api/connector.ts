@@ -92,6 +92,8 @@ export const RunBody = body({
   outcome: z.enum(['complete', 'capped', 'blocked', 'error', 'notFound', 'skipped'], { error: 'Esito non valido' }),
   pages: z.number(PAGES_ERROR).int(PAGES_ERROR).min(0, PAGES_ERROR).max(MAX_PAGES_PER_SEARCH, PAGES_ERROR),
   privates: z.number({ error: 'Numero di privati non valido' }).int({ error: 'Numero di privati non valido' }).nonnegative({ error: 'Numero di privati non valido' }),
+  /** Perché la ricerca è finita in errore: pagina non arrivata in tempo o annunci non letti. */
+  reason: z.enum(['timeout', 'unreadable'], { error: 'Esito non valido' }).optional(),
 });
 
 export const FinishBody = body({ outcome: z.enum(['completed', 'partial', 'stopped', 'interrupted'], { error: 'Esito non valido' }) });
