@@ -97,6 +97,19 @@ export const RunBody = body({
 export const FinishBody = body({ outcome: z.enum(['completed', 'partial', 'stopped', 'interrupted'], { error: 'Esito non valido' }) });
 export const StartSweepBody = body({});
 
+const BAD_REQUEST = { error: 'Richiesta non valida' };
+const field = (max: number) => z.string(BAD_REQUEST).min(1, BAD_REQUEST).max(max, BAD_REQUEST);
+/** Collegamento: il codice monouso avuto dal portale, più come si presenta il connettore. */
+export const LinkBody = body({ code: field(200), name: field(100), version: field(20) });
+
+/** Connettore collegato, come lo vede l'agente nel portale. */
+export interface DeviceInfo {
+  id: string;
+  name: string;
+  createdAt: number;
+  lastSeenAt: number | null;
+}
+
 /** Ricerche da fare nel giro; `sweepId` null se sono tutte fresche o in corso per un altro agente. */
 export interface SweepPlan {
   sweepId: string | null;
