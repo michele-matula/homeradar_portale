@@ -133,6 +133,20 @@ describe('lista dei lead', () => {
     expect(screen.getByRole('tab', { name: /^Nuovi/ }).getAttribute('aria-selected')).toBe('true');
   });
 
+  it('tornando sulla pagina dopo la mezzanotte i richiami si ricalcolano', async () => {
+    // Solo Date finto: i timer veri non scattano, come su un PC sospeso.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.UTC(2026, 9, 22, 21, 59));
+    const tomorrow = addDays(startOfLocalDay(Date.now()), 1);
+    mockApi(routes([lead({ key: 'subito:9', title: 'Da richiamare domani', status: 'to_contact', recallAt: tomorrow })]));
+    renderAt('/');
+    expect(await screen.findByRole('tab', { name: 'Richiami (1)' })).toBeTruthy();
+    vi.setSystemTime(Date.UTC(2026, 9, 22, 22, 1));
+    fireEvent(document, new Event('visibilitychange'));
+    expect(await screen.findByRole('link', { name: /1 da richiamare/ })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Richiami (1 da fare)' })).toBeTruthy();
+  });
+
   it('a mezzanotte i richiami si ricalcolano', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'], shouldAdvanceTime: true });
     // 23:59 a Roma (UTC+2 in ottobre prima del cambio d'ora).

@@ -186,7 +186,25 @@ describe('scheda del lead', () => {
     expect(within(detail()).getByRole('heading', { name: 'Villa con giardino' })).toBeTruthy();
   });
 
-  it('tornando indietro filtri e posizione restano', async () => {
+  /** Larghezza da telefono: sotto i 900 px la scheda prende la pagina. */
+  const narrowScreen = () =>
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q === '(max-width: 899px)', addEventListener() {}, removeEventListener() {} }));
+
+  it('su desktop chiudendo la scheda non si salta a una posizione vecchia', async () => {
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    mockApi(routes());
+    renderAt('/');
+    Object.defineProperty(window, 'scrollY', { value: 480, configurable: true });
+    fireEvent.click(await screen.findByRole('link', { name: 'Apri il lead: Villa con giardino' }));
+    await screen.findByRole('region', { name: 'Scheda del lead' });
+    fireEvent.click(screen.getByRole('button', { name: '← Lead' }));
+    expect(window.location.pathname).toBe('/');
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('sul telefono tornando indietro filtri e posizione restano', async () => {
+    narrowScreen();
     const scrollTo = vi.fn();
     vi.stubGlobal('scrollTo', scrollTo);
     mockApi(routes());
