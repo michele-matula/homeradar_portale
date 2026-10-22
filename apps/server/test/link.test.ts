@@ -97,7 +97,9 @@ describe('computer collegati', () => {
     const { token } = (await (await link(await codeFor(u.cookie))).json()) as { token: string };
     expect((await fetchConnector('POST', '/connector/sweeps', {}, bearer(token))).status).toBe(201);
     const [dev] = await devices(u.cookie);
-    await fetchApi('DELETE', `/api/devices/${dev!.id}`, undefined, { Cookie: u.cookie });
+    // Il dispositivo ha un giro: cancellarlo tocca anche quel giro, ma la risposta resta 204.
+    expect((await fetchApi('DELETE', `/api/devices/${dev!.id}`, undefined, { Cookie: u.cookie })).status).toBe(204);
+    expect(await devices(u.cookie)).toEqual([]);
     const relinked = (await (await link(await codeFor(u.cookie))).json()) as { token: string };
     const r = await fetchConnector('POST', '/connector/sweeps', {}, bearer(relinked.token));
     expect(r.status).toBe(201);

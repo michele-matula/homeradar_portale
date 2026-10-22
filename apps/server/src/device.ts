@@ -52,8 +52,9 @@ export async function listDevices(db: D1Database, userId: string): Promise<Devic
 
 /** Scollega un dispositivo dell'utente; false se non è suo. I suoi giri restano, senza dispositivo. */
 export async function deleteDevice(db: D1Database, userId: string, id: string): Promise<boolean> {
-  const r = await db.prepare('DELETE FROM devices WHERE id = ? AND user_id = ?').bind(id, userId).run();
-  return r.meta.changes === 1;
+  // RETURNING, non meta.changes: D1 conta anche i giri aggiornati da ON DELETE SET NULL.
+  const r = await db.prepare('DELETE FROM devices WHERE id = ? AND user_id = ? RETURNING id').bind(id, userId).first();
+  return r != null;
 }
 
 export interface DeviceAuth {
