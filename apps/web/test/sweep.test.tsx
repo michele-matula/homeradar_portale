@@ -85,7 +85,7 @@ describe('«Cerca» dal portale', () => {
     let installed = false;
     const c = fakeConnector((m) => (m.type === 'ping' && installed ? ok(STATE) : null));
     render(<Sweep userId="u1" connector={c.port} phone={false} />);
-    expect(await screen.findByText(/Installa il connettore HomeRadar per cercare dal computer/)).toBeTruthy();
+    expect(await screen.findByText(/Connettore non trovato/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Cerca' })).toBeNull();
     installed = true;
     await act(() => vi.advanceTimersByTimeAsync(3_000));
@@ -107,7 +107,7 @@ describe('«Cerca» dal portale', () => {
     });
     const c = fakeConnector((m) => (m.type === 'ping' ? ok({ ...STATE, sweeping: true }) : ok(null)));
     render(<Sweep userId="u1" connector={c.port} phone={false} />);
-    expect(await screen.findByText('Giro in corso: 2 di 5 ricerche')).toBeTruthy();
+    expect(await screen.findByText(/^Ricerca in corso/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Ferma' }));
     await vi.waitFor(() => expect(c.types()).toContain('stopSweep'));
   });
@@ -117,7 +117,7 @@ describe('«Cerca» dal portale', () => {
       'GET /api/sweep': { status: 200, body: { running: null, last: { startedAt: 1, finishedAt: 2, outcome: 'partial', portals: {}, notFound: [], newCount: 7, drops: 0, missing: 0 } } },
     });
     render(<Sweep userId="u1" connector={fakeConnector(() => ok(STATE)).port} phone={false} />);
-    expect(await screen.findByText('Ultimo giro: completato in parte · 7 nuovi')).toBeTruthy();
+    expect(await screen.findByText(/^Ultimo giro: .* · completato in parte · 7 nuovi lead$/)).toBeTruthy();
   });
 
   it('pagine in attesa d\'invio e invio bloccato', async () => {
@@ -135,6 +135,77 @@ describe('«Cerca» dal portale', () => {
   });
 });
 
+const RUNNING = {
+  startedAt: Date.now() - 4 * 60_000, total: 6, done: 2, current: 'Treviglio · Case (Immobiliare)',
+  portals: { immobiliare: { pages: 4, privates: 37 } }, newCount: 5, drops: 1,
+};
+const FINISHED = {
+  startedAt: Date.now() - 10 * 60_000, finishedAt: Date.now() + 60_000, outcome: 'partial',
+  portals: { immobiliare: { outcome: 'complete', searches: 2, pages: 4, privates: 37 }, idealista: { outcome: 'blocked', searches: 1, pages: 0, privates: 0 } },
+  notFound: ['Treviglio · Box (Subito)'], newCount: 3, drops: 2, missing: 1,
+};
+
+describe('avanzamento del giro', () => {
+  it('in corso: barra, portali, ricerca corrente e Ferma', async () => {
+    mockApi({ 'GET /api/sweep': { status: 200, body: { running: RUNNING, last: null } } });
+    const c = fakeConnector((m) => (m.type === 'ping' ? ok({ ...STATE, sweeping: true }) : ok(null)));
+    render(<Sweep userId="u1" connector={c.port} phone={false} />);
+    expect(await screen.findByText('Ricerca in corso · 4 min')).toBeTruthy();
+    const bar = screen.getByRole('progressbar', { name: 'Ricerche fatte' }) as HTMLProgressElement;
+    expect([bar.value, bar.max]).toEqual([2, 6]);
+    expect(screen.getByText('Treviglio · Case (Immobiliare)')).toBeTruthy();
+    expect(screen.getByText('Immobiliare.it: 4 pagine · 37 privati')).toBeTruthy();
+    expect(screen.getByText('Finora: 5 annunci nuovi · 1 ribassi')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Ferma' })).toBeTruthy();
+  });
+
+  it('a fine giro: riepilogo, motivi e Vedi i nuovi', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let n = 0;
+    mockApi({ 'GET /api/sweep': () => ({ status: 200, body: n++ === 0 ? { running: RUNNING, last: null } : { running: null, last: FINISHED } }) });
+    const onFinished = vi.fn();
+    const onShowNew = vi.fn();
+    render(<Sweep userId="u1" connector={fakeConnector(() => ok(STATE)).port} phone={false} onFinished={onFinished} onShowNew={onShowNew} />);
+    await screen.findByText(/^Ricerca in corso/);
+    await act(() => vi.advanceTimersByTimeAsync(3_000));
+    expect(await screen.findByText('Giro completato in parte · 11 min')).toBeTruthy();
+    expect(screen.getByText('3 nuovi lead · 2 ribassi · 1 non più visti')).toBeTruthy();
+    expect(screen.getByText('Idealista.it ha chiesto una verifica: aprilo tu e riprova domani.')).toBeTruthy();
+    expect(screen.getByText('Non trovati: Treviglio · Box (Subito).')).toBeTruthy();
+    expect(onFinished).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Vedi i nuovi' }));
+    expect(onShowNew).toHaveBeenCalledWith(FINISHED.startedAt);
+    fireEvent.click(screen.getByRole('button', { name: 'Chiudi' }));
+    expect(screen.queryByText('Giro completato in parte · 11 min')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Cerca' })).toBeTruthy();
+  });
+
+  it('con pagine in attesa si continua a interrogare il connettore', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    api();
+    let pending = 2;
+    render(<Sweep userId="u1" connector={fakeConnector(() => ok({ ...STATE, pending })).port} phone={false} />);
+    expect(await screen.findByText("2 pagine in attesa d'invio")).toBeTruthy();
+    pending = 0;
+    await act(() => vi.advanceTimersByTimeAsync(3_000));
+    await vi.waitFor(() => expect(screen.queryByText("2 pagine in attesa d'invio")).toBeNull());
+  });
+
+  it('connettore assente: testo con l\'incognito', async () => {
+    api();
+    render(<Sweep userId="u1" connector={fakeConnector(() => null).port} phone={false} />);
+    expect(await screen.findByText(/se sei in una finestra in incognito, apri il portale in una finestra normale/)).toBeTruthy();
+  });
+
+  it('senza zona non c\'è Cerca', async () => {
+    api();
+    render(<Sweep userId="u1" connector={fakeConnector(() => ok(STATE)).port} phone={false} hasZone={false} />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole('button', { name: 'Cerca' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Ricerche' })).toBeNull();
+  });
+});
+
 describe('pagina dell\'agente', () => {
   it('dopo il collegamento da «Cerca» compare il computer collegato, senza ricaricare', async () => {
     let list: unknown[] = [];
@@ -146,7 +217,7 @@ describe('pagina dell\'agente', () => {
       },
     });
     const c = fakeConnector((m) => (m.type === 'ping' ? ok({ ...STATE, linked: false, userId: null }) : m.type === 'startSweep' ? ok({ sweepId: 'g', total: 1, skipped: 0 }) : ok(null)));
-    render(<Leads me={{ id: 'u1', email: 'a@b.it', role: 'agent', comuni: [] }} onSignOut={() => {}} connector={c.port} />);
+    render(<Leads me={{ id: 'u1', email: 'a@b.it', role: 'agent', comuni: [{ istat: '016219', name: 'Treviglio', province: 'BG' }] }} onSignOut={() => {}} connector={c.port} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
     expect(await screen.findByText('Chrome su Windows')).toBeTruthy();
   });

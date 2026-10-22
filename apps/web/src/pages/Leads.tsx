@@ -92,7 +92,18 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
 
   return (
     <Layout me={me} onSignOut={onSignOut} dueRecalls={dueRecalls} wide>
-      <Sweep userId={me.id} connector={connector} onLinked={() => setLinked((n) => n + 1)} />
+      <Sweep
+        userId={me.id}
+        connector={connector}
+        hasZone={hasZone}
+        onLinked={() => setLinked((n) => n + 1)}
+        onFinished={reload}
+        onShowNew={(since) => {
+          setFilters({ ...EMPTY_FILTERS, since });
+          setTab('new');
+          navigate('/');
+        }}
+      />
       {!hasZone ? (
         <section className="card">
           <p>L'amministratore non ti ha ancora assegnato una zona: quando lo farà, qui troverai i lead dei tuoi comuni.</p>

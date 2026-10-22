@@ -114,6 +114,25 @@ describe('lista dei lead', () => {
     expect(calls.filter((c) => c.path === '/api/leads')).toHaveLength(2);
   });
 
+  it('Vedi i nuovi filtra i lead del giro', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const startedAt = Date.now() - 60_000;
+    let n = 0;
+    const running = { startedAt, total: 1, done: 0, current: null, portals: {}, newCount: 0, drops: 0 };
+    const last = { startedAt, finishedAt: Date.now() + 60_000, outcome: 'completed', portals: {}, notFound: [], newCount: 1, drops: 0, missing: 0 };
+    mockApi(routes(
+      [lead({ key: 'subito:1', title: 'Nuovo del giro', firstSeenAt: Date.now() }), lead({ key: 'subito:2', title: 'Vecchio', firstSeenAt: startedAt - 86_400_000 })],
+      { 'GET /api/sweep': () => ({ status: 200, body: n++ === 0 ? { running, last: null } : { running: null, last } }) },
+    ));
+    renderAt('/');
+    await screen.findByText(/^Ricerca in corso/);
+    await act(() => vi.advanceTimersByTimeAsync(3_000));
+    fireEvent.click(await screen.findByRole('button', { name: 'Vedi i nuovi' }));
+    expect(rows()).toEqual(['Apri il lead: Nuovo del giro']);
+    expect(screen.getByRole('button', { name: 'Togli il filtro Da questo giro' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /^Nuovi/ }).getAttribute('aria-selected')).toBe('true');
+  });
+
   it('a mezzanotte i richiami si ricalcolano', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'], shouldAdvanceTime: true });
     // 23:59 a Roma (UTC+2 in ottobre prima del cambio d'ora).

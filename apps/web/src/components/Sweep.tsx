@@ -1,22 +1,55 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ConnectorState, SweepStarted } from '@homeradar/shared/api/connector-messages';
-import type { SweepOutcome, SweepStatus } from '@homeradar/shared/shared/types';
+import { startOfLocalDay } from '@homeradar/shared/core/recall';
+import { formatDateTime } from '@homeradar/shared/shared/format';
+import { PORTAL_SITES, PORTALS, type Portal, type PortalSweepOutcome, type SweepOutcome, type SweepResult, type SweepStatus } from '@homeradar/shared/shared/types';
 import { api, errorText } from '../api';
 import { chromeConnector, isPhone, type ConnectorPort } from '../connector';
 
-/** Avanzamento e connettore si rileggono ogni tanto mentre il giro corre o finché il connettore non risponde. */
+/** Avanzamento e connettore si rileggono ogni tanto mentre il giro corre, il connettore non risponde o ha pagine da inviare. */
 const POLL_MS = 3_000;
 
 const OUTCOMES: Record<SweepOutcome, string> = { completed: 'completato', partial: 'completato in parte', stopped: 'fermato', interrupted: 'interrotto' };
+const OUTCOME_TITLES: Record<SweepOutcome, string> = {
+  completed: 'Giro completato', partial: 'Giro completato in parte', stopped: 'Giro fermato', interrupted: 'Giro interrotto',
+};
+const minutes = (ms: number) => `${Math.max(1, Math.round(ms / 60_000))} min`;
 
-function lastLine(status: SweepStatus | null): string | null {
-  const last = status?.last;
-  return last ? `Ultimo giro: ${OUTCOMES[last.outcome]} · ${last.newCount} nuovi` : null;
+function portalReason(p: Portal, o: PortalSweepOutcome): string | null {
+  const site = PORTAL_SITES[p];
+  if (o === 'blocked') return `${site} ha chiesto una verifica: aprilo tu e riprova domani.`;
+  if (o === 'capped') return `${site}: raggiunto il limite di pagine, alcune ricerche sono incomplete.`;
+  if (o === 'error') return `${site} non ha risposto ad alcune pagine.`;
+  return null;
 }
 
-/** «Cerca» e «Ferma» del giro delle ricerche, che il connettore fa sul computer dell'agente. */
-export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), onLinked }: {
-  userId: string; connector?: ConnectorPort; phone?: boolean; /** Il connettore si è appena collegato a questo account. */ onLinked?(): void;
+/** Motivi per cui il giro non è andato del tutto bene, per portale, più le ricerche che il portale non riconosce. */
+function reasons(r: SweepResult): string[] {
+  const out = PORTALS.flatMap((p) => {
+    const s = r.portals[p];
+    const why = s && portalReason(p, s.outcome);
+    return why ? [why] : [];
+  });
+  if (r.notFound.length) out.push(`Non trovati: ${r.notFound.join(', ')}.`);
+  return out;
+}
+
+// Durante il giro il server conta gli annunci nuovi; alla fine i lead nuovi (stesso immobile su più portali = uno).
+const lastLine = (last: SweepResult) => `Ultimo giro: ${formatDateTime(last.startedAt)} · ${OUTCOMES[last.outcome]} · ${last.newCount} nuovi lead`;
+
+/** Giro delle ricerche: «Cerca» e «Ferma» (il connettore lo fa sul computer dell'agente), avanzamento e riepilogo. */
+export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), hasZone = true, onLinked, onFinished, onShowNew }: {
+  userId: string;
+  connector?: ConnectorPort;
+  phone?: boolean;
+  /** Senza comuni assegnati non c'è niente da cercare. */
+  hasZone?: boolean;
+  /** Il connettore si è appena collegato a questo account. */
+  onLinked?(): void;
+  /** Un giro in corso è appena finito: i lead vanno riletti. */
+  onFinished?(): void;
+  /** «Vedi i nuovi»: lead visti per la prima volta da questo giro. */
+  onShowNew?(since: number): void;
 }) {
   const [status, setStatus] = useState<SweepStatus | null>(null);
   /** undefined = non ancora chiesto, null = connettore assente. */
@@ -24,6 +57,10 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Il riepilogo si mostra per un giro finito mentre la pagina era aperta, finché l'agente non lo chiude.
+  const [openedAt] = useState(Date.now);
+  const [dismissed, setDismissed] = useState<number | null>(null);
+  const wasRunning = useRef(false);
 
   const refresh = useCallback(() => api<SweepStatus>('GET', '/api/sweep').then(setStatus, () => {}), []);
   const ping = useCallback(async () => {
@@ -32,20 +69,27 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
   }, [connector]);
 
   useEffect(() => {
+    if (!hasZone) return;
     void refresh();
     if (!phone) void ping();
-  }, [refresh, ping, phone]);
+  }, [refresh, ping, phone, hasZone]);
 
   const running = status?.running != null;
-  const waiting = !phone && conn === null;
   useEffect(() => {
-    if (!running && !waiting) return;
+    if (wasRunning.current && !running && status) onFinished?.();
+    wasRunning.current = running;
+  }, [running, status, onFinished]);
+
+  const waiting = !phone && conn === null;
+  const pending = conn?.pending ?? 0;
+  useEffect(() => {
+    if (!hasZone || (!running && !waiting && pending === 0)) return;
     const h = setInterval(() => {
       if (running) void refresh();
       if (!phone) void ping();
     }, POLL_MS);
     return () => clearInterval(h);
-  }, [running, waiting, refresh, ping, phone]);
+  }, [running, waiting, pending, refresh, ping, phone, hasZone]);
 
   async function linkNow(): Promise<void> {
     const { code } = await api<{ code: string }>('POST', '/api/devices/link-code', {});
@@ -89,42 +133,95 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
     await refresh();
   }
 
-  const last = lastLine(status);
+  if (!hasZone) return null;
+  const last = status?.last ?? null;
+  const now = Date.now();
+
   if (phone) {
     return (
-      <section className="card">
+      <section className="card sweep">
         <h2>Ricerche</h2>
         <p>Le ricerche partono dal computer</p>
-        {last && <p className="hint">{last}</p>}
+        {status?.running && <p className="hint">{`Giro in corso: ${status.running.done} di ${status.running.total} ricerche`}</p>}
+        {!status?.running && last && <p className="hint">{lastLine(last)}</p>}
       </section>
     );
   }
-  const pending = conn?.pending ?? 0;
-  return (
-    <section className="card">
-      <h2>Ricerche</h2>
-      {conn === null && <p>Installa il connettore HomeRadar per cercare dal computer. Questa pagina se ne accorge da sola.</p>}
-      {status?.running ? (
-        <>
-          <p>Giro in corso: {status.running.done} di {status.running.total} ricerche</p>
+
+  const footer = (
+    <>
+      {info && <p className="notice">{info}</p>}
+      {pending > 0 && <p className="hint">{pending === 1 ? "1 pagina in attesa d'invio" : `${pending} pagine in attesa d'invio`}</p>}
+      {conn?.stuck && <p className="error">Il connettore non riesce a inviare i dati: controlla la connessione</p>}
+      {error && <p className="error" role="alert">{error}</p>}
+    </>
+  );
+
+  if (status?.running) {
+    const r = status.running;
+    return (
+      <section className="card sweep">
+        <h2>{`Ricerca in corso · ${minutes(now - r.startedAt)}`}</h2>
+        <progress className="sweep__bar" max={r.total} value={r.done} aria-label="Ricerche fatte" />
+        {r.current && <p className="sweep__current">{r.current}</p>}
+        <ul className="sweep__portals">
+          {PORTALS.filter((p) => r.portals[p]).map((p) => (
+            <li key={p}>{`${PORTAL_SITES[p]}: ${r.portals[p]!.pages} pagine · ${r.portals[p]!.privates} privati`}</li>
+          ))}
+        </ul>
+        <div className="sweep__row">
+          <span>{`Finora: ${r.newCount} annunci nuovi · ${r.drops} ribassi`}</span>
           {conn && (
             <button type="button" className="btn" onClick={() => void stop()}>
               Ferma
             </button>
           )}
-        </>
-      ) : (
-        conn && (
-          <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void start()}>
+        </div>
+        {footer}
+      </section>
+    );
+  }
+
+  if (last && last.finishedAt >= openedAt && dismissed !== last.finishedAt) {
+    return (
+      <section className="card sweep">
+        <h2>{`${OUTCOME_TITLES[last.outcome]} · ${minutes(last.finishedAt - last.startedAt)}`}</h2>
+        <p>{`${last.newCount} nuovi lead · ${last.drops} ribassi · ${last.missing} non più visti`}</p>
+        {reasons(last).map((r) => <p key={r} className="sweep__reason">{r}</p>)}
+        <div className="sweep__row">
+          <button type="button" className="btn btn--primary" onClick={() => onShowNew?.(last.startedAt)}>
+            Vedi i nuovi
+          </button>
+          <button type="button" className="btn" onClick={() => setDismissed(last.finishedAt)}>
+            Chiudi
+          </button>
+        </div>
+        {footer}
+      </section>
+    );
+  }
+
+  const today = last != null && startOfLocalDay(last.startedAt) === startOfLocalDay(now);
+  return (
+    <section className="card sweep">
+      <h2>Ricerche</h2>
+      {conn === null && (
+        <p>
+          Connettore non trovato. Se non l'hai installato, installalo; se sei in una finestra in incognito, apri il portale in una finestra
+          normale. Questa pagina se ne accorge da sola.
+        </p>
+      )}
+      <p className="sweep__last">{last ? lastLine(last) : 'Nessun giro fatto finora'}</p>
+      {last && reasons(last).map((r) => <p key={r} className="sweep__reason">{r}</p>)}
+      {conn && (
+        <div className="sweep__row">
+          {!today && <span>Giro di oggi da fare</span>}
+          <button type="button" className={today ? 'btn' : 'btn btn--primary'} disabled={busy} onClick={() => void start()}>
             Cerca
           </button>
-        )
+        </div>
       )}
-      {info && <p className="notice">{info}</p>}
-      {!status?.running && last && <p className="hint">{last}</p>}
-      {pending > 0 && <p className="hint">{pending === 1 ? "1 pagina in attesa d'invio" : `${pending} pagine in attesa d'invio`}</p>}
-      {conn?.stuck && <p className="error">Il connettore non riesce a inviare i dati: controlla la connessione</p>}
-      {error && <p className="error" role="alert">{error}</p>}
+      {footer}
     </section>
   );
 }
