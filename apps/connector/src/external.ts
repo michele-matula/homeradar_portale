@@ -13,6 +13,8 @@ export interface ExternalDeps {
   stop(): Promise<void>;
   sweeping(): Promise<boolean>;
   queueState(): Promise<{ pending: number; stuck: boolean }>;
+  /** Riprova subito gli invii in attesa, senza aspettare l'attesa crescente. */
+  retryNow(): void;
 }
 
 /** Messaggi della pagina del portale (`externally_connectable`): solo dalla sua origine. */
@@ -27,6 +29,8 @@ export async function handleExternal(
     switch (m.type) {
       case 'ping': {
         const [userId, sweeping, q] = await Promise.all([d.linkedUser(), d.sweeping(), d.queueState()]);
+        // Il portale risponde, quindi anche il server: le pagine in attesa partono ora, non fra qualche minuto.
+        if (q.pending > 0) d.retryNow();
         return { ok: true, data: { version: d.version, linked: userId != null, userId, sweeping, pending: q.pending, stuck: q.stuck } };
       }
       case 'link':

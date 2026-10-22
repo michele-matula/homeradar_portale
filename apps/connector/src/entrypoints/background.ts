@@ -131,6 +131,7 @@ export default defineBackground(() => {
       stop: () => runner.stop(),
       sweeping: () => runner.running(),
       queueState: () => queue.state(),
+      retryNow: () => void queue.flush({ force: true }).catch(() => {}),
     }).then(sendResponse);
     return true;
   });

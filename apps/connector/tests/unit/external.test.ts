@@ -13,6 +13,7 @@ function deps(o: Partial<ExternalDeps> = {}): ExternalDeps {
     stop: vi.fn(async () => {}),
     sweeping: vi.fn(async () => false),
     queueState: vi.fn(async () => ({ pending: 2, stuck: false })),
+    retryNow: vi.fn(),
     ...o,
   };
 }
@@ -34,6 +35,15 @@ describe('messaggi del portale', () => {
     expect(await handleExternal({ type: 'ping' }, ORIGIN, deps())).toEqual({
       ok: true, data: { version: '0.1.0', linked: true, userId: 'u1', sweeping: false, pending: 2, stuck: false },
     });
+  });
+
+  it("ping con pagine in attesa: si riprova subito (il portale risponde, quindi il server c'è)", async () => {
+    const d = deps();
+    await handleExternal({ type: 'ping' }, ORIGIN, d);
+    expect(d.retryNow).toHaveBeenCalledTimes(1);
+    const empty = deps({ queueState: async () => ({ pending: 0, stuck: false }) });
+    await handleExternal({ type: 'ping' }, ORIGIN, empty);
+    expect(empty.retryNow).not.toHaveBeenCalled();
   });
 
   it('ping senza collegamento', async () => {
