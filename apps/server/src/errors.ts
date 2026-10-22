@@ -37,7 +37,7 @@ export async function recordErrors(db: D1Database, origin: ErrorOrigin, errors: 
     `INSERT INTO errors (source, version, message, user_id, device_id, device_name, context, count, first_at, last_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
      ON CONFLICT (source, version, message, user_id, device_id) DO UPDATE SET
-       count = count + 1, last_at = MAX(last_at, excluded.last_at), context = excluded.context, device_name = excluded.device_name`,
+       count = count + 1, last_at = MAX(last_at, excluded.last_at), context = COALESCE(excluded.context, context), device_name = excluded.device_name`,
   );
   // Commit o versione del manifest: si tiene com'è (sanitizeError storpierebbe le cifre); altro testo no.
   const version = SAFE_VERSION.test(origin.version) ? origin.version : 'sconosciuta';

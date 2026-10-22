@@ -45,7 +45,8 @@ export async function touchDevice(db: D1Database, deviceId: string, name: string
 }
 
 /**
- * Il browser si ricollega con il token che aveva: i giri del dispositivo vecchio passano al nuovo, che lo sostituisce.
+ * Il browser si ricollega con il token che aveva: giri ed errori del dispositivo vecchio passano al nuovo, che lo sostituisce
+ * (gli errori uguali si sommano, come in `anonymizeErrors`), così non compaiono come «connettore revocato».
  * Solo se il vecchio è dello stesso utente; altrimenti non cambia niente.
  */
 export async function replaceDevice(db: D1Database, userId: string, previousToken: string, newId: string): Promise<void> {
@@ -55,6 +56,13 @@ export async function replaceDevice(db: D1Database, userId: string, previousToke
   if (!old) return;
   await db.batch([
     db.prepare('UPDATE sweeps SET device_id = ? WHERE device_id = ?').bind(newId, old.id),
+    // WHERE true: in SQLite un INSERT … SELECT con ON CONFLICT lo richiede per non confondere la sintassi.
+    db.prepare(`INSERT INTO errors (source, version, message, user_id, device_id, device_name, context, count, first_at, last_at)
+      SELECT source, version, message, user_id, ?, device_name, context, count, first_at, last_at FROM errors WHERE device_id = ? AND true
+      ON CONFLICT (source, version, message, user_id, device_id) DO UPDATE SET
+        count = count + excluded.count, first_at = MIN(first_at, excluded.first_at), last_at = MAX(last_at, excluded.last_at),
+        context = COALESCE(context, excluded.context)`).bind(newId, old.id),
+    db.prepare('DELETE FROM errors WHERE device_id = ?').bind(old.id),
     db.prepare('DELETE FROM devices WHERE id = ?').bind(old.id),
   ]);
 }

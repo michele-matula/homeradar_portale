@@ -165,6 +165,24 @@ describe('ricollegamento dello stesso browser', () => {
     expect((await fetchConnector('POST', '/connector/hello', { name: 'x', version: '1' }, bearer(old))).status).toBe(401);
   });
 
+  it('gli errori del dispositivo vecchio passano al nuovo e si sommano', async () => {
+    const { recordErrors } = await import('../src/errors');
+    const u = await agent();
+    const old = await linked(u.cookie);
+    const oldId = (await deviceIdOf(old))!;
+    const t0 = Date.now() - 60_000;
+    const origin = { source: 'connector' as const, version: '0.1.0', userId: u.id, deviceName: 'Chrome su Windows' };
+    await recordErrors(env.DB, { ...origin, deviceId: oldId }, [{ message: 'Boom', at: t0 }, { message: 'Solo vecchio', at: t0 }], t0);
+    const fresh = await linked(u.cookie, old);
+    const newId = (await deviceIdOf(fresh))!;
+    await recordErrors(env.DB, { ...origin, deviceId: newId }, [{ message: 'Boom', at: Date.now() }], Date.now());
+    const errs = (await env.DB.prepare('SELECT message, device_id, count, first_at FROM errors ORDER BY message').all<{ message: string; device_id: string; count: number; first_at: number }>()).results;
+    expect(errs).toEqual([
+      { message: 'Boom', device_id: newId, count: 2, first_at: t0 },
+      { message: 'Solo vecchio', device_id: newId, count: 1, first_at: t0 },
+    ]);
+  });
+
   it("il token di un altro agente non tocca il suo dispositivo", async () => {
     const other = await agent();
     const theirs = await linked(other.cookie);

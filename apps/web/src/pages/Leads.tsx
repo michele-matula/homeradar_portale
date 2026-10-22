@@ -32,13 +32,12 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
   const listScroll = useRef(0);
   const wasOpen = useRef(selectedKey != null);
 
-  // Aprendo una scheda sul telefono si parte dall'alto; chiudendola si torna dov'era la lista.
+  // Sul telefono aprendo una scheda si parte dall'alto e chiudendola si torna dov'era la lista; su desktop la lista resta a video.
   useLayoutEffect(() => {
     const open = selectedKey != null;
     if (open === wasOpen.current) return;
     wasOpen.current = open;
-    if (!open) window.scrollTo(0, listScroll.current);
-    else if (narrow()) window.scrollTo(0, 0);
+    if (narrow()) window.scrollTo(0, open ? 0 : listScroll.current);
   }, [selectedKey]);
 
   const reload = useCallback(async () => {
@@ -64,6 +63,18 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
     const h = setTimeout(() => setNow(Date.now()), Math.max(1_000, nextRecallCheck(now) - Date.now()));
     return () => clearTimeout(h);
   }, [now]);
+  // Con il PC sospeso il timer non scatta: al ritorno sulla pagina «oggi», richiami e giro di oggi si ricalcolano.
+  useEffect(() => {
+    const wake = () => {
+      if (document.visibilityState === 'visible') setNow(Date.now());
+    };
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('focus', wake);
+    return () => {
+      document.removeEventListener('visibilitychange', wake);
+      window.removeEventListener('focus', wake);
+    };
+  }, []);
 
   /** Stato salvato per il gruppo del lead con questa chiave principale: si aggiorna senza ricaricare la lista. */
   const replaceState = useCallback((mainKey: string, state: LeadState) => {

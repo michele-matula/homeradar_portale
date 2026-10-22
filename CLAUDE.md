@@ -15,6 +15,7 @@ npm test -w apps/server           # Worker con D1 locale (runtime Workers)
 npm test -w apps/web
 npm test -w apps/connector
 npm run test:e2e -w apps/connector   # Playwright: build di prova (.output-e2e), portale finto su localhost:8799
+npm run test:e2e -w apps/web         # Playwright: SPA + wrangler dev su :8788 con D1 nuovo in apps/web/.e2e-state (admin e annunci seminati), invito → accesso → lead
 WXT_PORTAL_URL=http://localhost:8787 npm run build -w apps/connector   # estensione in apps/connector/.output/chrome-mv3
 npx vitest run test/auth.test.ts  # un file, dentro il workspace
 npm run dev -w apps/web           # SPA su :5173, /api passa a :8787

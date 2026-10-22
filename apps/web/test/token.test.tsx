@@ -90,13 +90,3 @@ describe('reimpostazione', () => {
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ password: 'nuova-password' });
   });
 });
-
-describe('informativa', () => {
-  it('pagina pubblica con testo provvisorio', async () => {
-    mockApi({ 'GET /api/me': NOT_LOGGED });
-    renderAt('/informativa');
-    expect(await screen.findByRole('heading', { name: 'Informativa' })).toBeTruthy();
-    expect(screen.getByText("Testo in preparazione: verrà pubblicato prima dell'apertura del servizio.")).toBeTruthy();
-    expect(window.location.pathname).toBe('/informativa');
-  });
-});

@@ -38,7 +38,8 @@ export function sessionToken(req: Request): string | null {
 
 export type AuthResult = { user: UserRow; setCookie?: string } | Response;
 
-export async function authenticate(req: Request, env: Env, now: number): Promise<AuthResult> {
+/** `touch` false: la richiesta non conta come uso del portale (errori mandati in automatico), `last_seen_at` non cambia. */
+export async function authenticate(req: Request, env: Env, now: number, touch = true): Promise<AuthResult> {
   const token = sessionToken(req);
   if (!token) return fail(401, 'Accesso richiesto');
   const hash = await hashToken(token);
@@ -57,7 +58,7 @@ export async function authenticate(req: Request, env: Env, now: number): Promise
     await env.DB.prepare('UPDATE sessions SET expires_at = ? WHERE token_hash = ?').bind(now + SESSION_TTL_MS, hash).run();
     setCookie = cookie(token, SESSION_TTL_MS / 1000);
   }
-  if (user.lastSeenAt == null || now - user.lastSeenAt > LAST_SEEN_EVERY_MS) {
+  if (touch && (user.lastSeenAt == null || now - user.lastSeenAt > LAST_SEEN_EVERY_MS)) {
     await env.DB.prepare('UPDATE users SET last_seen_at = ? WHERE id = ?').bind(now, user.id).run();
     user.lastSeenAt = now;
   }

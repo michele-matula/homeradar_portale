@@ -49,16 +49,25 @@ export function LeadDetail({ lead, now, onSaved, onSplit, onClose }: {
   const [error, setError] = useState<string | null>(null);
   const recall = recallStatus(state.recallAt, now);
 
-  async function save(patch: LeadPatch): Promise<boolean> {
-    setError(null);
-    try {
-      const r = await api<{ state: LeadState }>('PATCH', '/api/leads/state', { keys, ...patch });
-      onSaved(r.state);
-      return true;
-    } catch (e) {
-      setError(errorText(e));
-      return false;
-    }
+  /**
+   * I salvataggi partono uno dopo l'altro (nota poi stato, a pochi istanti): il server li applica in ordine e ogni risposta
+   * contiene anche i precedenti, così a video resta sempre l'ultimo stato salvato, anche se il salvataggio dopo fallisce.
+   */
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  function save(patch: LeadPatch): Promise<boolean> {
+    const run = queue.current.then(async () => {
+      setError(null);
+      try {
+        const r = await api<{ state: LeadState }>('PATCH', '/api/leads/state', { keys, ...patch });
+        onSaved(r.state);
+        return true;
+      } catch (e) {
+        setError(errorText(e));
+        return false;
+      }
+    });
+    queue.current = run;
+    return run;
   }
 
   async function saveNotes(): Promise<void> {
@@ -78,13 +87,22 @@ export function LeadDetail({ lead, now, onSaved, onSplit, onClose }: {
     if (day != null) pick(day);
   };
 
+  // Il ref ferma il secondo clic prima che il bottone si ridisegni disabilitato.
+  const splitting = useRef(false);
+  const [splitBusy, setSplitBusy] = useState(false);
   async function split(key: string): Promise<void> {
+    if (splitting.current) return;
+    splitting.current = true;
+    setSplitBusy(true);
     setError(null);
     try {
       await api('POST', '/api/leads/split', { key, fromKeys: keys.filter((k) => k !== key) });
       await onSplit();
     } catch (e) {
       setError(errorText(e));
+    } finally {
+      splitting.current = false;
+      setSplitBusy(false);
     }
   }
 
@@ -253,6 +271,7 @@ export function LeadDetail({ lead, now, onSaved, onSplit, onClose }: {
                   className="btn btn--small"
                   aria-label={s.previous ? `Separa annuncio precedente ${PORTAL_TAGS[s.listing.portal]}` : `Separa ${PORTAL_TAGS[s.listing.portal]}`}
                   title="Non è lo stesso immobile: mostralo come lead a sé"
+                  disabled={splitBusy}
                   onClick={() => void split(s.listing.key)}
                 >
                   Separa
