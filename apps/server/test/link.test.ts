@@ -87,6 +87,23 @@ describe('collegamento del connettore', () => {
 });
 
 describe('computer collegati', () => {
+  it('il collegamento dice di quale account è il connettore', async () => {
+    const u = await agent();
+    expect(await (await link(await codeFor(u.cookie))).json()).toEqual({ token: expect.any(String), userId: u.id });
+  });
+
+  it('scollegato a metà giro: il «Cerca» dal computer ricollegato parte subito', async () => {
+    const u = await agent();
+    const { token } = (await (await link(await codeFor(u.cookie))).json()) as { token: string };
+    expect((await fetchConnector('POST', '/connector/sweeps', {}, bearer(token))).status).toBe(201);
+    const [dev] = await devices(u.cookie);
+    await fetchApi('DELETE', `/api/devices/${dev!.id}`, undefined, { Cookie: u.cookie });
+    const relinked = (await (await link(await codeFor(u.cookie))).json()) as { token: string };
+    const r = await fetchConnector('POST', '/connector/sweeps', {}, bearer(relinked.token));
+    expect(r.status).toBe(201);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM sweeps WHERE outcome = 'interrupted'").first('n')).toBe(1);
+  });
+
   it('scollegare: solo i propri; il token scollegato non vale più', async () => {
     const a = await agent();
     const b = await agent();

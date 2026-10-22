@@ -109,6 +109,15 @@ export async function closeStaleSweeps(db: D1Database, userId: string, now: numb
   for (const s of results) await finishSweep(db, s.id, 'interrupted', now);
 }
 
+/** Giri aperti di un dispositivo che si scollega: interrotti. */
+export async function closeDeviceSweeps(db: D1Database, userId: string, deviceId: string, now: number): Promise<void> {
+  const { results } = await db
+    .prepare('SELECT id FROM sweeps WHERE user_id = ? AND device_id = ? AND finished_at IS NULL')
+    .bind(userId, deviceId)
+    .all<{ id: string }>();
+  for (const s of results) await finishSweep(db, s.id, 'interrupted', now);
+}
+
 /**
  * Piano del giro: le ricerche della zona e dei portali dell'agente, tranne quelle fresche (complete di chiunque negli
  * ultimi minuti di freschezza) e quelle in corso per un altro agente. Il piano non dice chi le ha fatte.

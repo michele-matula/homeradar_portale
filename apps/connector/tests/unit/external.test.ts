@@ -7,7 +7,7 @@ const ORIGIN = 'https://portale.test';
 function deps(o: Partial<ExternalDeps> = {}): ExternalDeps {
   return {
     portalOrigin: ORIGIN, version: '0.1.0',
-    linked: vi.fn(async () => true),
+    linkedUser: vi.fn(async () => 'u1'),
     link: vi.fn(async () => {}),
     start: vi.fn(async () => ({ sweepId: 'g', total: 2, skipped: 1 })),
     stop: vi.fn(async () => {}),
@@ -32,8 +32,12 @@ describe('messaggi del portale', () => {
 
   it('ping: stato del connettore', async () => {
     expect(await handleExternal({ type: 'ping' }, ORIGIN, deps())).toEqual({
-      ok: true, data: { version: '0.1.0', linked: true, sweeping: false, pending: 2, stuck: false },
+      ok: true, data: { version: '0.1.0', linked: true, userId: 'u1', sweeping: false, pending: 2, stuck: false },
     });
+  });
+
+  it('ping senza collegamento', async () => {
+    expect(await handleExternal({ type: 'ping' }, ORIGIN, deps({ linkedUser: async () => null }))).toMatchObject({ ok: true, data: { linked: false, userId: null } });
   });
 
   it('link, start, stop', async () => {

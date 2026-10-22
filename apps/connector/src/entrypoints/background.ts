@@ -18,7 +18,7 @@ const failure = (r: ServerReply) => new Error(errorOf(r) ?? (r.status === 0 ? UN
 export default defineBackground(() => {
   const version = browser.runtime.getManifest().version;
   const token = async () => ((await browser.storage.local.get('token')).token as string | undefined) ?? null;
-  const unlink = () => browser.storage.local.remove('token');
+  const unlink = () => browser.storage.local.remove(['token', 'userId']);
   const client = createClient({ baseUrl: PORTAL, token, fetch: (input, init) => fetch(input, init) });
 
   const queue = createSendQueue({
@@ -40,7 +40,11 @@ export default defineBackground(() => {
         });
       }
     },
-    onUnlinked: unlink,
+    // Scollegato dal portale: niente più invii possibili, il giro in corso si ferma.
+    async onUnlinked() {
+      await unlink();
+      void runner.stop().catch(() => {});
+    },
   });
 
   const runner = createRunner({
@@ -98,7 +102,8 @@ export default defineBackground(() => {
     }
     const data: unknown = await res.json().catch(() => null);
     if (res.status !== 201) throw failure({ status: res.status, data });
-    await browser.storage.local.set({ token: (data as { token: string }).token });
+    const { token: t, userId } = data as { token: string; userId: string };
+    await browser.storage.local.set({ token: t, userId });
   }
 
   browser.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
@@ -106,7 +111,10 @@ export default defineBackground(() => {
     void handleExternal(msg, origin, {
       portalOrigin: PORTAL,
       version,
-      linked: async () => (await token()) != null,
+      linkedUser: async () => {
+        const s = await browser.storage.local.get(['token', 'userId']);
+        return s.token ? ((s.userId as string | undefined) ?? null) : null;
+      },
       link,
       start: () => {
         // Prima di un giro nuovo si riprova quello che è rimasto indietro, anche oltre le 24 ore.

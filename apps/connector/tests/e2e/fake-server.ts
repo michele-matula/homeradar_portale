@@ -38,7 +38,7 @@ export async function startFakeServer(port = 8799) {
         f.n--;
         return send(f.status, { error: 'Server giù' });
       }
-      if (path === '/connector/link') return send(201, { token: 'tok' });
+      if (path === '/connector/link') return send(201, { token: 'tok', userId: 'u1' });
       if (path === '/connector/sweeps') return send(201, plan);
       return send(200, { ok: true });
     });

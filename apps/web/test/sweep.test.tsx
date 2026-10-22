@@ -6,7 +6,7 @@ import { Sweep } from '../src/components/Sweep';
 import type { ConnectorPort } from '../src/connector';
 import { mockApi, type Routes } from './helpers';
 
-const STATE: ConnectorState = { version: '0.1.0', linked: true, sweeping: false, pending: 0, stuck: false };
+const STATE: ConnectorState = { version: '0.1.0', linked: true, userId: 'u1', sweeping: false, pending: 0, stuck: false };
 const IDLE = { 'GET /api/sweep': { status: 200, body: { running: null, last: null } } };
 
 /** Connettore finto: registra i messaggi e risponde con `reply`, o null se assente. */
@@ -34,7 +34,7 @@ describe('«Cerca» dal portale', () => {
   it('non collegato: chiede il codice, collega il connettore e parte', async () => {
     const calls = api();
     const c = fakeConnector((m) => (m.type === 'ping' ? ok({ ...STATE, linked: false }) : m.type === 'startSweep' ? ok({ sweepId: 'g', total: 3, skipped: 0 }) : ok(null)));
-    render(<Sweep connector={c.port} phone={false} />);
+    render(<Sweep userId="u1" connector={c.port} phone={false} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
     await vi.waitFor(() => expect(c.types()).toContain('startSweep'));
     // Il primo ping è quello all'apertura; dopo l'avvio ne parte un altro.
@@ -43,10 +43,19 @@ describe('«Cerca» dal portale', () => {
     expect(calls.some((x) => x.method === 'POST' && x.path === '/api/devices/link-code')).toBe(true);
   });
 
+  it('connettore collegato a un altro account: lo ricollega a questo', async () => {
+    api();
+    const c = fakeConnector((m) => (m.type === 'ping' ? ok({ ...STATE, userId: 'altro' }) : m.type === 'startSweep' ? ok({ sweepId: 'g', total: 1, skipped: 0 }) : ok(null)));
+    render(<Sweep userId="u1" connector={c.port} phone={false} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
+    await vi.waitFor(() => expect(c.types()).toContain('startSweep'));
+    expect(c.types().slice(1, 4)).toEqual(['ping', 'link', 'startSweep']);
+  });
+
   it('collegamento perso: ricollega e riprova una volta sola', async () => {
     api();
     const c = fakeConnector((m) => (m.type === 'ping' ? ok(STATE) : m.type === 'startSweep' ? notLinked : ok(null)));
-    render(<Sweep connector={c.port} phone={false} />);
+    render(<Sweep userId="u1" connector={c.port} phone={false} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Connettore non collegato');
     expect(c.types().filter((t) => t === 'startSweep')).toHaveLength(2);
@@ -56,7 +65,7 @@ describe('«Cerca» dal portale', () => {
   it('tutte le ricerche fresche', async () => {
     api();
     const c = fakeConnector((m) => (m.type === 'ping' ? ok(STATE) : m.type === 'startSweep' ? ok({ sweepId: null, total: 0, skipped: 4 }) : ok(null)));
-    render(<Sweep connector={c.port} phone={false} />);
+    render(<Sweep userId="u1" connector={c.port} phone={false} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
     expect(await screen.findByText("Dati già aggiornati da meno di un'ora")).toBeTruthy();
   });
@@ -64,7 +73,7 @@ describe('«Cerca» dal portale', () => {
   it('errore del connettore: il suo messaggio', async () => {
     api();
     const c = fakeConnector((m) => (m.type === 'ping' ? ok(STATE) : m.type === 'startSweep' ? { ok: false, error: 'Giro già in corso su un altro computer' } : ok(null)));
-    render(<Sweep connector={c.port} phone={false} />);
+    render(<Sweep userId="u1" connector={c.port} phone={false} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Giro già in corso su un altro computer');
   });
@@ -74,7 +83,7 @@ describe('«Cerca» dal portale', () => {
     api();
     let installed = false;
     const c = fakeConnector((m) => (m.type === 'ping' && installed ? ok(STATE) : null));
-    render(<Sweep connector={c.port} phone={false} />);
+    render(<Sweep userId="u1" connector={c.port} phone={false} />);
     expect(await screen.findByText(/Installa il connettore HomeRadar per cercare dal computer/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Cerca' })).toBeNull();
     installed = true;
@@ -85,7 +94,7 @@ describe('«Cerca» dal portale', () => {
   it('dal telefono: nessun «Cerca»', async () => {
     api();
     const c = fakeConnector(() => ok(STATE));
-    render(<Sweep connector={c.port} phone />);
+    render(<Sweep userId="u1" connector={c.port} phone />);
     expect(await screen.findByText('Le ricerche partono dal computer')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Cerca' })).toBeNull();
     expect(c.sent).toEqual([]);
@@ -96,7 +105,7 @@ describe('«Cerca» dal portale', () => {
       'GET /api/sweep': { status: 200, body: { running: { startedAt: 1, total: 5, done: 2, current: 'x', portals: {}, newCount: 0, drops: 0 }, last: null } },
     });
     const c = fakeConnector((m) => (m.type === 'ping' ? ok({ ...STATE, sweeping: true }) : ok(null)));
-    render(<Sweep connector={c.port} phone={false} />);
+    render(<Sweep userId="u1" connector={c.port} phone={false} />);
     expect(await screen.findByText('Giro in corso: 2 di 5 ricerche')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Ferma' }));
     await vi.waitFor(() => expect(c.types()).toContain('stopSweep'));
@@ -106,21 +115,21 @@ describe('«Cerca» dal portale', () => {
     mockApi({
       'GET /api/sweep': { status: 200, body: { running: null, last: { startedAt: 1, finishedAt: 2, outcome: 'partial', portals: {}, notFound: [], newCount: 7, drops: 0, missing: 0 } } },
     });
-    render(<Sweep connector={fakeConnector(() => ok(STATE)).port} phone={false} />);
+    render(<Sweep userId="u1" connector={fakeConnector(() => ok(STATE)).port} phone={false} />);
     expect(await screen.findByText('Ultimo giro: completato in parte · 7 nuovi')).toBeTruthy();
   });
 
   it('pagine in attesa d\'invio e invio bloccato', async () => {
     api();
     const c = fakeConnector(() => ok({ ...STATE, pending: 3, stuck: true }));
-    render(<Sweep connector={c.port} phone={false} />);
+    render(<Sweep userId="u1" connector={c.port} phone={false} />);
     expect(await screen.findByText("3 pagine in attesa d'invio")).toBeTruthy();
     expect(screen.getByText('Il connettore non riesce a inviare i dati: controlla la connessione')).toBeTruthy();
   });
 
   it('una sola pagina in attesa', async () => {
     api();
-    render(<Sweep connector={fakeConnector(() => ok({ ...STATE, pending: 1 })).port} phone={false} />);
+    render(<Sweep userId="u1" connector={fakeConnector(() => ok({ ...STATE, pending: 1 })).port} phone={false} />);
     expect(await screen.findByText("1 pagina in attesa d'invio")).toBeTruthy();
   });
 });

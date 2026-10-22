@@ -5,7 +5,8 @@ import {
 export interface ExternalDeps {
   portalOrigin: string;
   version: string;
-  linked(): Promise<boolean>;
+  /** Account del token salvato; null se non collegato. */
+  linkedUser(): Promise<string | null>;
   /** Scambia il codice con il token del dispositivo; lancia un Error col messaggio del server. */
   link(code: string): Promise<void>;
   start(): Promise<SweepStarted>;
@@ -25,8 +26,8 @@ export async function handleExternal(
   try {
     switch (m.type) {
       case 'ping': {
-        const [linked, sweeping, q] = await Promise.all([d.linked(), d.sweeping(), d.queueState()]);
-        return { ok: true, data: { version: d.version, linked, sweeping, pending: q.pending, stuck: q.stuck } };
+        const [userId, sweeping, q] = await Promise.all([d.linkedUser(), d.sweeping(), d.queueState()]);
+        return { ok: true, data: { version: d.version, linked: userId != null, userId, sweeping, pending: q.pending, stuck: q.stuck } };
       }
       case 'link':
         await d.link(m.code);

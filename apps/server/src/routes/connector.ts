@@ -17,7 +17,8 @@ export const connectorRoutes: Route[] = [
     if (!user) return fail(400, 'Codice di collegamento non valido o scaduto');
     if (user.status !== 'active') return fail(403, 'Account sospeso');
     const { token } = await insertDevice(env.DB, user.id, body.name, now, body.version);
-    return json({ token }, 201);
+    // L'account del token: il portale lo confronta con quello di chi è entrato (PC condiviso, cambio d'account).
+    return json({ token, userId: user.id }, 201);
   }),
 
   deviceRoute('POST', '/connector/sweeps', async (req, env, _p, { user, deviceId, now }) => {

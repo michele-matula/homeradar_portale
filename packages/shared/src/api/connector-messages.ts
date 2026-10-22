@@ -20,6 +20,8 @@ export const PortalMessage: z.ZodType<PortalMessage> = z.discriminatedUnion('typ
 export interface ConnectorState {
   version: string;
   linked: boolean;
+  /** Account a cui è collegato: il portale ricollega se non è quello di chi è entrato. */
+  userId: string | null;
   sweeping: boolean;
   pending: number;
   stuck: boolean;

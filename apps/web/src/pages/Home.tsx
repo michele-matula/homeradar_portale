@@ -22,7 +22,7 @@ export function Home({ me, onSignOut }: { me: Me; onSignOut(): void }) {
           </>
         )}
       </section>
-      <Sweep />
+      <Sweep userId={me.id} />
       <Devices />
     </Layout>
   );

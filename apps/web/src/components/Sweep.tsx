@@ -15,7 +15,7 @@ function lastLine(status: SweepStatus | null): string | null {
 }
 
 /** «Cerca» e «Ferma» del giro delle ricerche, che il connettore fa sul computer dell'agente. */
-export function Sweep({ connector = chromeConnector, phone = isPhone() }: { connector?: ConnectorPort; phone?: boolean }) {
+export function Sweep({ userId, connector = chromeConnector, phone = isPhone() }: { userId: string; connector?: ConnectorPort; phone?: boolean }) {
   const [status, setStatus] = useState<SweepStatus | null>(null);
   /** undefined = non ancora chiesto, null = connettore assente. */
   const [conn, setConn] = useState<ConnectorState | null | undefined>(undefined);
@@ -59,7 +59,8 @@ export function Sweep({ connector = chromeConnector, phone = isPhone() }: { conn
     try {
       const state = await connector.send<ConnectorState>({ type: 'ping' });
       if (!state?.ok) throw new Error('Il connettore non risponde');
-      if (!state.data.linked) await linkNow();
+      // Non collegato, o collegato a un altro account (PC condiviso, cambio d'account): si collega a questo.
+      if (!state.data.linked || state.data.userId !== userId) await linkNow();
       let r = await connector.send<SweepStarted>({ type: 'startSweep' });
       // Collegamento revocato dal portale o token perso: si ricollega una volta sola.
       if (r && !r.ok && r.notLinked) {
