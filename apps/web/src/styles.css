@@ -196,6 +196,53 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: none; box-
 .sparkline--flat { color: var(--subtle); }
 .empty { padding: 32px 20px; text-align: center; color: var(--muted); border: 1px dashed var(--border-strong); border-radius: var(--radius); background: var(--surface); }
 .empty p { margin: 0; }
+/* Lista e scheda: affiancate su schermi larghi; sotto i 900 px la scheda aperta prende la pagina. */
+.workspace { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.workspace__detail { position: sticky; top: 72px; max-height: calc(100vh - 88px); overflow-y: auto; }
+.detail { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+.detail--empty { align-items: flex-start; color: var(--muted); }
+.detail--empty p { margin: 0 0 8px; }
+.detail__back { display: none; align-self: flex-start; margin-bottom: 8px; }
+.detail__head { display: flex; flex-wrap: wrap; gap: 16px; }
+.detail__head .cover--large { flex: 1 1 220px; }
+.detail__summary { flex: 1 1 240px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.detail__title { margin: 0; font-size: 19px; line-height: 1.3; }
+.detail__price { margin: 0; font-size: 18px; font-weight: 700; color: var(--brand); }
+.detail__section { padding-top: 12px; margin-top: 8px; border-top: 1px solid var(--border); }
+.detail__section h3 { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.detail__section p { margin: 0 0 4px; }
+.detail__field { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-weight: 500; }
+.detail__field .field--select { align-self: flex-start; min-width: 200px; }
+.detail__notes { height: auto; min-height: 72px; padding: 8px 10px; resize: vertical; font: inherit; }
+.recall { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.recall__picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; }
+.history { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 14px; }
+.history th, .history td { padding: 4px 6px; text-align: left; border-bottom: 1px solid var(--border); }
+.history th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.market-tag { display: inline-block; margin-bottom: 4px; font-size: 13px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--medium-border); background: var(--medium-soft); color: var(--medium); }
+.sources__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.sources__item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sources__facts { flex: 1; font-size: 13px; color: var(--muted); }
+.sources__previous { font-size: 13px; color: var(--muted); font-style: italic; }
+.info { display: inline-flex; }
+.info__btn {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 18px; height: 18px; padding: 0;
+  border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface); color: var(--muted); font: italic 700 11px/1 Georgia, serif; cursor: help;
+}
+.info__btn:hover, .info__btn[aria-expanded='true'] { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+.info__tip {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 3; padding: 8px 10px; border-radius: var(--radius-sm);
+  background: var(--text); color: #fff; font-size: 13px; font-weight: 400; line-height: 1.45; box-shadow: var(--shadow-hover);
+}
+.info__tip[hidden] { display: none; }
+@media (max-width: 899px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .workspace__detail { position: static; max-height: none; overflow: visible; }
+  .workspace:not(.workspace--detail) .workspace__detail { display: none; }
+  .workspace--detail .workspace__list { display: none; }
+  .detail { padding: 14px; }
+  .detail__back { display: inline-flex; }
+}
 @media (max-width: 599px) {
   .tabs { grid-template-columns: repeat(3, 1fr); }
   .lead__head { flex-direction: column; gap: 0; }

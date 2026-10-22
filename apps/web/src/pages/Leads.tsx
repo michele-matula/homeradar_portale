@@ -1,18 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { LeadsResponse, Me } from '@homeradar/shared/api/types';
+import { leadKeys } from '@homeradar/shared/core/leads';
 import { isDue, nextRecallCheck } from '@homeradar/shared/core/recall';
 import type { LeadState, LeadView } from '@homeradar/shared/shared/types';
 import { api, errorText } from '../api';
 import { Devices } from '../components/Devices';
 import { Layout } from '../components/Layout';
+import { LeadDetail } from '../components/LeadDetail';
 import { LeadList } from '../components/LeadList';
 import { Sweep } from '../components/Sweep';
 import type { ConnectorPort } from '../connector';
 import { EMPTY_FILTERS, filterLeads, initialTab, type LeadFilters, type Tab } from '../leads/filters';
 import { loadFiltersOpen, loadSortByTab, saveFiltersOpen, saveSortByTab, type SortByTab } from '../prefs';
-import { leadKeyOf, usePath } from '../router';
+import { leadKeyOf, navigate, usePath } from '../router';
 
-/** Pagina dei lead: giro delle ricerche, lista con filtri e (Task 4) scheda del lead aperta. */
+/** Sotto questa larghezza la scheda prende tutta la pagina (stessa soglia del CSS). */
+const narrow = () => typeof matchMedia === 'function' && matchMedia('(max-width: 899px)').matches;
+
+/** Pagina dei lead: giro delle ricerche, lista con filtri e scheda del lead aperta (`/lead/<chiave>`). */
 export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void; connector?: ConnectorPort }) {
   const path = usePath();
   const selectedKey = leadKeyOf(path);
@@ -27,6 +32,17 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
   // Cresce a ogni collegamento del connettore: la lista dei computer si rilegge.
   const [linked, setLinked] = useState(0);
   const hasZone = me.comuni.length > 0;
+  const listScroll = useRef(0);
+  const wasOpen = useRef(selectedKey != null);
+
+  // Aprendo una scheda sul telefono si parte dall'alto; chiudendola si torna dov'era la lista.
+  useLayoutEffect(() => {
+    const open = selectedKey != null;
+    if (open === wasOpen.current) return;
+    wasOpen.current = open;
+    if (!open) window.scrollTo(0, listScroll.current);
+    else if (narrow()) window.scrollTo(0, 0);
+  }, [selectedKey]);
 
   const reload = useCallback(async () => {
     try {
@@ -59,7 +75,9 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
 
   const tab: Tab = chosenTab ?? 'new';
   const result = useMemo(() => filterLeads(leads ?? [], filters, tab, me.comuni, sortByTab, now), [leads, filters, tab, me.comuni, sortByTab, now]);
-  const dueRecalls = (leads ?? []).filter((l) => l.state.status !== 'discarded' && isDue(l.state.recallAt, now)).length;
+  // Anche la chiave di una fonte secondaria apre il suo lead.
+  const selected = selectedKey ? (leads ?? []).find((l) => leadKeys(l).includes(selectedKey)) ?? null : null;
+  const dueRecalls =(leads ?? []).filter((l) => l.state.status !== 'discarded' && isDue(l.state.recallAt, now)).length;
 
   const setSort = (k: Parameters<typeof saveSortByTab>[0][keyof SortByTab]) => {
     if (tab === 'recall') return;
@@ -90,6 +108,10 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
         <p className="hint" aria-busy="true">Caricamento dei lead…</p>
       ) : (
         <div className={selectedKey ? 'workspace workspace--detail' : 'workspace'}>
+          {/* Sul telefono la lista sparisce mentre la scheda è aperta: si ricorda dove era per tornarci. */}
+          <div className="workspace__list" onClickCapture={() => {
+            if (!selectedKey) listScroll.current = window.scrollY;
+          }}>
           <LeadList
             result={result}
             filters={filters}
@@ -104,6 +126,24 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
             selectedKey={selectedKey}
             now={now}
           />
+          </div>
+          <div className="workspace__detail">
+            {selected ? (
+              <LeadDetail key={selected.listing.key} lead={selected} now={now} onSaved={(s) => replaceState(selected.listing.key, s)} onSplit={reload} onClose={() => navigate('/')} />
+            ) : selectedKey ? (
+              <section className="detail detail--empty">
+                <p>Questo lead non è nella tua lista</p>
+                <p className="hint">Può essere stato separato, o non è più visto da molto tempo.</p>
+                <button type="button" className="btn" onClick={() => navigate('/')}>
+                  Torna ai lead
+                </button>
+              </section>
+            ) : (
+              <section className="detail detail--empty">
+                <p className="hint">Scegli un lead dalla lista</p>
+              </section>
+            )}
+          </div>
         </div>
       )}
       {error && leads && <p className="error" role="alert">{error}</p>}
