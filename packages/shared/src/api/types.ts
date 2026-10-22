@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import {
-  DEFAULT_SETTINGS, LEAD_STATUSES, PORTALS, PROPERTY_CATEGORIES, type ComuneRef, type LeadView, type Portal, type PropertyCategory,
+  DEFAULT_SETTINGS, LEAD_STATUSES, PORTALS, PROPERTY_CATEGORIES, type ComuneRef, type LeadView, type Portal, type PropertyCategory, type SweepOutcome,
 } from '../shared/types';
+import type { SearchErrorReason } from '../core/sweep';
 
 export type Role = 'agent' | 'admin';
 export type UserStatus = 'invited' | 'active' | 'suspended';
@@ -133,3 +134,69 @@ export const ErrorReportBody = z.strictObject({
     .max(MAX_ERRORS_PER_REPORT, BAD_REPORT),
 }, BAD_REPORT);
 export type ErrorReport = z.infer<typeof ErrorReportBody>;
+
+/** Stato di un agente nella pagina «Controllo»: verde, arancio, rosso. */
+export type Health = 'ok' | 'warn' | 'bad';
+
+export interface ControlDevice {
+  id: string;
+  name: string;
+  version: string | null;
+  createdAt: number;
+  lastSeenAt: number | null;
+  /** Fine dell'ultimo giro completato senza ricerche bloccate o in errore; null = nessun giro riuscito. */
+  lastGoodSweepAt: number | null;
+}
+
+export interface ControlSweep {
+  id: string;
+  startedAt: number;
+  finishedAt: number | null;
+  outcome: SweepOutcome | null;
+  deviceName: string | null;
+  searches: number;
+  /** Ricerche `blocked` o `error`. */
+  problems: number;
+}
+
+export interface ControlRow {
+  userId: string;
+  email: string;
+  status: UserStatus;
+  lastSeenAt: number | null;
+  devices: ControlDevice[];
+  lastSweep: ControlSweep | null;
+  sweeps30d: number;
+  errors7d: number;
+  health: Health;
+  reasons: string[];
+}
+
+export interface ControlRun {
+  searchKey: string;
+  portal: Portal;
+  label: string;
+  status: string;
+  pages: number;
+  privates: number;
+  reason: SearchErrorReason | null;
+}
+
+export interface ErrorGroup {
+  source: ErrorSource;
+  version: string;
+  message: string;
+  count: number;
+  firstAt: number;
+  lastAt: number;
+  context: string | null;
+  /** Email degli agenti coinvolti (vuoto: errori senza agente). */
+  agents: string[];
+  devices: { name: string | null; revoked: boolean }[];
+}
+
+export interface ControlAgent {
+  row: ControlRow;
+  sweeps: ControlSweep[];
+  errors: ErrorGroup[];
+}

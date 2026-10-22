@@ -24,7 +24,7 @@ export async function requireAdmin(req: Request, env: Env, now: number): Promise
 }
 
 /** Rotta riservata all'admin: l'handler riceve anche l'istante della richiesta. */
-const admin = (method: string, pattern: string, h: (req: Request, env: Env, params: Record<string, string>, now: number) => Promise<Response>): Route => {
+export const admin = (method: string, pattern: string, h: (req: Request, env: Env, params: Record<string, string>, now: number) => Promise<Response>): Route => {
   const wrapped: Handler = async (req, env, params) => {
     const now = Date.now();
     const auth = await requireAdmin(req, env, now);
