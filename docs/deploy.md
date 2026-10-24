@@ -46,11 +46,15 @@ Al 2026-10-22 in produzione sono applicate `0001`–`0004`. Prima del deploy del
 
 Il connettore (`apps/connector`) è un'estensione che si costruisce per un portale preciso: l'indirizzo del portale entra nella build (API e unica pagina che può parlargli).
 
+Gli agenti lo installano dal Chrome Web Store (non in elenco): https://chromewebstore.google.com/detail/pdmkkhanejfbdmddajphaeepnlepofkg, lo stesso link che il portale mostra quando non trova il connettore. Al primo «Cerca» il portale lo collega da solo all'account. La versione non pacchettizzata qui sotto serve per lo sviluppo.
+
 1. Dalla radice: `WXT_PORTAL_URL=https://homeradar-portale.<account>.workers.dev npm run build -w apps/connector`. Senza `WXT_PORTAL_URL` la build si ferma.
 2. In Chrome (o Edge): `chrome://extensions` → modalità sviluppatore → «Carica estensione non pacchettizzata» → `apps/connector/.output/chrome-mv3`.
 3. Apri il portale e premi «Cerca»: il portale collega da solo il connettore all'account e lo mostra in «I tuoi computer».
 
-L'ID dell'estensione è fisso (chiave pubblica in `apps/connector/src/key.ts`, ID in `CONNECTOR_ID`): il portale lo usa per parlarle. Alla pubblicazione sul Web Store (non in elenco) si sostituiscono chiave e ID con quelli che dà il Web Store.
+L'ID dell'estensione è fisso ed è quello dello Store (`pdmkkhanejfbdmddajphaeepnlepofkg`): la chiave pubblica del Web Store è in `apps/connector/src/key.ts`, l'ID in `CONNECTOR_ID`. Il portale lo usa per parlarle. Nello stesso Chrome non possono stare insieme la versione dello Store e quella non pacchettizzata. I connettori non pacchettizzati costruiti prima del 2026-10-24 hanno l'ID vecchio e non parlano più col portale: vanno rimossi da `chrome://extensions`.
+
+Dopo un cambio di `CONNECTOR_ID` va rifatto il deploy del portale: `npm run build`, poi `npm run deploy -w apps/server`.
 
 ### Pacchetto per lo Store
 

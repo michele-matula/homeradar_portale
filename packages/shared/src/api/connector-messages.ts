@@ -2,8 +2,11 @@ import { z } from 'zod';
 
 // Messaggi fra il portale (pagina) e il connettore (estensione): `chrome.runtime.sendMessage(CONNECTOR_ID, …)`.
 
-/** ID fisso dell'estensione, ricavato dalla chiave pubblica del manifest (`apps/connector/src/key.ts`). */
-export const CONNECTOR_ID = 'jojmcoiibegdcgafonhdkdkkdoiaeapc';
+/** ID fisso dell'estensione, quello del Chrome Web Store: lo dà la chiave pubblica del manifest (`apps/connector/src/key.ts`). */
+export const CONNECTOR_ID = 'pdmkkhanejfbdmddajphaeepnlepofkg';
+
+/** Pagina del connettore sul Chrome Web Store («Non in elenco»: si arriva solo da questo link). */
+export const CONNECTOR_STORE_URL = `https://chromewebstore.google.com/detail/${CONNECTOR_ID}`;
 
 export const NOT_LINKED = 'Connettore non collegato';
 
