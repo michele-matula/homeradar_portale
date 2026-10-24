@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ConnectorState, SweepStarted } from '@homeradar/shared/api/connector-messages';
+import { CONNECTOR_STORE_URL, type ConnectorState, type SweepStarted } from '@homeradar/shared/api/connector-messages';
 import { startOfLocalDay } from '@homeradar/shared/core/recall';
 import { formatDateTime } from '@homeradar/shared/shared/format';
 import { PORTAL_SITES, PORTALS, type Portal, type PortalSweepOutcome, type SweepOutcome, type SweepResult, type SweepStatus } from '@homeradar/shared/shared/types';
@@ -207,8 +207,11 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
       <h2>Ricerche</h2>
       {conn === null && (
         <p>
-          Connettore non trovato. Se non l'hai installato, installalo; se sei in una finestra in incognito, apri il portale in una finestra
-          normale. Questa pagina se ne accorge da sola.
+          Connettore non trovato. Se non l'hai installato,{' '}
+          <a href={CONNECTOR_STORE_URL} target="_blank" rel="noreferrer">
+            installalo dal Chrome Web Store
+          </a>
+          ; se sei in una finestra in incognito, apri il portale in una finestra normale. Questa pagina se ne accorge da sola.
         </p>
       )}
       <p className="sweep__last">{last ? lastLine(last) : 'Nessun giro fatto finora'}</p>

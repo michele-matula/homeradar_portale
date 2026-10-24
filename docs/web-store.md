@@ -69,4 +69,4 @@ Ogni nuovo caricamento vuole una `version` più alta in `apps/connector/package.
 
 ## Dopo la prima approvazione
 
-Dalla dashboard: l'**ID** dell'elemento e la **chiave pubblica** (Pacchetto → «Visualizza chiave pubblica», senza le righe `-----BEGIN/END-----`). Vanno in `apps/connector/src/key.ts` e in `CONNECTOR_ID`, con il link d'installazione nel portale: Task 8 del piano `docs/superpowers/plans/2026-10-22-portale-06-pilota.md`.
+Approvato il 2026-10-24 («Pubblicato – Non in elenco», versione 0.1.0). ID dell'elemento: `pdmkkhanejfbdmddajphaeepnlepofkg`; link d'installazione: https://chromewebstore.google.com/detail/pdmkkhanejfbdmddajphaeepnlepofkg. La chiave pubblica dello Store (Pacchetto → «Visualizza chiave pubblica», senza le righe `-----BEGIN/END-----`) è in `apps/connector/src/key.ts`, l'ID in `CONNECTOR_ID`; il portale mostra il link quando non trova il connettore.

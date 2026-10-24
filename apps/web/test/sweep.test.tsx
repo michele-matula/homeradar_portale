@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ConnectorReply, ConnectorState, PortalMessage } from '@homeradar/shared/api/connector-messages';
+import { CONNECTOR_STORE_URL, type ConnectorReply, type ConnectorState, type PortalMessage } from '@homeradar/shared/api/connector-messages';
 import { Devices } from '../src/components/Devices';
 import { Sweep } from '../src/components/Sweep';
 import type { ConnectorPort } from '../src/connector';
@@ -194,6 +194,14 @@ describe('avanzamento del giro', () => {
     api();
     render(<Sweep userId="u1" connector={fakeConnector(() => null).port} phone={false} />);
     expect(await screen.findByText(/se sei in una finestra in incognito, apri il portale in una finestra normale/)).toBeTruthy();
+  });
+
+  it('connettore assente: link al Chrome Web Store', async () => {
+    api();
+    render(<Sweep userId="u1" connector={fakeConnector(() => null).port} phone={false} />);
+    const link = await screen.findByRole('link', { name: 'installalo dal Chrome Web Store' });
+    expect(link.getAttribute('href')).toBe(CONNECTOR_STORE_URL);
+    expect(link.getAttribute('target')).toBe('_blank');
   });
 
   it('senza zona non c\'è Cerca', async () => {
