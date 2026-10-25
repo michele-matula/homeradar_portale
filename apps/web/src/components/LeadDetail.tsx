@@ -30,11 +30,18 @@ export function LeadDetail({ lead, now, isNew, onSaved, onSplit }: {
   const keys = leadKeys(lead);
   const [notes, setNotes] = useState(state.notes);
   /** Nota cambiata dall'agente e non ancora salvata: solo questa si manda al server. */
-  const [dirty, setDirty] = useState(false);
+  const [dirty, setDirtyState] = useState(false);
+  // Copia sincrona per l'effetto qui sotto: React può eseguirlo dopo che l'agente ha già scritto, e con il valore della
+  // closure rimetterebbe la nota salvata sopra quella appena scritta.
+  const dirtyNow = useRef(false);
+  const setDirty = (v: boolean) => {
+    dirtyNow.current = v;
+    setDirtyState(v);
+  };
   const [noteState, setNoteState] = useState<NoteState>('idle');
   // Una nota non toccata segue quella salvata (cambiata da un altro dispositivo e riletta), così non si sovrascrive.
   useEffect(() => {
-    if (!dirty) setNotes(state.notes);
+    if (!dirtyNow.current) setNotes(state.notes);
   }, [state.notes, dirty]);
   // Chiudendo la scheda (✕, Esc, clic fuori, indietro del browser) la nota scritta si salva anche senza uscire dal campo.
   const pending = useRef<{ notes: string; keys: string[]; onSaved: typeof onSaved } | null>(null);
