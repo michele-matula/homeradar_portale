@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LeadsResponse, Me } from '@homeradar/shared/api/types';
 import { isNewLead } from '@homeradar/shared/core/lead-groups';
 import { leadKeys } from '@homeradar/shared/core/leads';
@@ -9,13 +9,14 @@ import { FilterPanel } from '../components/FilterPanel';
 import { Layout } from '../components/Layout';
 import { LeadDetail } from '../components/LeadDetail';
 import { LeadList } from '../components/LeadList';
+import { LeadModal } from '../components/LeadModal';
 import { Sweep } from '../components/Sweep';
 import type { ConnectorPort } from '../connector';
-import { EMPTY_FILTERS, filterLeads, initialTab, type LeadFilters, type Tab } from '../leads/filters';
+import { EMPTY_FILTERS, filterLeads, initialTab, pageOf, type LeadFilters, type Tab } from '../leads/filters';
 import { loadFiltersOpen, loadSortByTab, saveFiltersOpen, saveSortByTab, type SortByTab } from '../prefs';
 import { leadKeyOf, navigate, usePath } from '../router';
 
-/** Sotto questa larghezza i filtri stanno dietro un bottone e la scheda prende tutta la pagina (stessa soglia del CSS). */
+/** Sotto questa larghezza i filtri stanno dietro un bottone e la finestra del lead prende lo schermo (stessa soglia del CSS). */
 const NARROW = '(max-width: 899px)';
 const narrow = () => typeof matchMedia === 'function' && matchMedia(NARROW).matches;
 
@@ -49,16 +50,6 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
   const [page, setPage] = useState(1);
   const isNarrow = useNarrow();
   const hasZone = me.comuni.length > 0;
-  const listScroll = useRef(0);
-  const wasOpen = useRef(selectedKey != null);
-
-  // Sul telefono aprendo una scheda si parte dall'alto e chiudendola si torna dov'era la lista; su desktop la lista resta a video.
-  useLayoutEffect(() => {
-    const open = selectedKey != null;
-    if (open === wasOpen.current) return;
-    wasOpen.current = open;
-    if (narrow()) window.scrollTo(0, open ? 0 : listScroll.current);
-  }, [selectedKey]);
 
   const reload = useCallback(async () => {
     try {
@@ -107,6 +98,10 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
   const result = useMemo(() => filterLeads(leads ?? [], filters, tab, me.comuni, sortByTab, now, newSince), [leads, filters, tab, me.comuni, sortByTab, now, newSince]);
   // Anche la chiave di una fonte secondaria apre il suo lead.
   const selected = selectedKey ? (leads ?? []).find((l) => leadKeys(l).includes(selectedKey)) ?? null : null;
+  // «Lead 3 di 25 · pagina 1»: solo se il lead aperto è nella pagina mostrata.
+  const shown = pageOf(result.visible, page);
+  const index = selected ? shown.items.indexOf(selected) : -1;
+  const position = index >= 0 ? `Lead ${index + 1} di ${shown.items.length} · pagina ${shown.page}` : null;
   const dueRecalls =(leads ?? []).filter((l) => l.state.status !== 'discarded' && isDue(l.state.recallAt, now)).length;
 
   const setSort = (k: Parameters<typeof saveSortByTab>[0][keyof SortByTab]) => {
@@ -169,9 +164,6 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
         <p className="hint" aria-busy="true">Caricamento dei lead…</p>
       ) : (
         <>
-          <div onClickCapture={() => {
-            if (!selectedKey) listScroll.current = window.scrollY;
-          }}>
           <LeadList
             result={result}
             filters={filters}
@@ -186,20 +178,22 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
             isNew={(l) => isNewLead(l, newSince)}
             now={now}
           />
-          </div>
-          <div className="leadspage__detail">
-            {selected ? (
-              <LeadDetail key={selected.listing.key} lead={selected} now={now} onSaved={(s) => replaceState(selected.listing.key, s)} onSplit={reload} onClose={() => navigate('/')} />
-            ) : selectedKey ? (
-              <section className="detail detail--empty">
-                <p>Questo lead non è nella tua lista</p>
-                <p className="hint">Può essere stato separato, o non è più visto da molto tempo.</p>
-                <button type="button" className="btn" onClick={() => navigate('/')}>
-                  Torna ai lead
-                </button>
-              </section>
-            ) : null}
-          </div>
+          {/* La lista resta montata sotto la finestra: chiudendola filtri, pagina e posizione sono quelli di prima. */}
+          {selectedKey && (
+            <LeadModal onClose={() => navigate('/')} position={position}>
+              {selected ? (
+                <LeadDetail key={selected.listing.key} lead={selected} now={now} isNew={isNewLead(selected, newSince)} onSaved={(s) => replaceState(selected.listing.key, s)} onSplit={reload} />
+              ) : (
+                <section className="detail detail--empty">
+                  <p>Questo lead non è nella tua lista</p>
+                  <p className="hint">Può essere stato separato, o non è più visto da molto tempo.</p>
+                  <button type="button" className="btn" onClick={() => navigate('/')}>
+                    Torna ai lead
+                  </button>
+                </section>
+              )}
+            </LeadModal>
+          )}
         </>
       )}
       {error && leads && <p className="error" role="alert">{error}</p>}
