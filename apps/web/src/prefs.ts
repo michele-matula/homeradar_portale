@@ -29,7 +29,7 @@ export function saveSortByTab(s: SortByTab): void {
   }
 }
 
-/** Riquadro «Filtri» aperto o chiuso; chiuso se manca. */
+/** Filtri aperti o chiusi sul telefono (su schermo largo sono sempre aperti); chiusi se manca. */
 export function loadFiltersOpen(): boolean {
   try {
     return localStorage.getItem(FILTERS_KEY) === 'true';

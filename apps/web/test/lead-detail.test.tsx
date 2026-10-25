@@ -211,7 +211,8 @@ describe('scheda del lead', () => {
     vi.stubGlobal('scrollTo', scrollTo);
     mockApi(routes());
     renderAt('/');
-    fireEvent.click(await screen.findByRole('radio', { name: 'Alta (1)' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Filtri/ }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta (1)' }));
     Object.defineProperty(window, 'scrollY', { value: 480, configurable: true });
     fireEvent.click(screen.getByRole('link', { name: 'Apri il lead: Villa con giardino' }));
     expect(window.location.pathname).toBe('/lead/immobiliare%3A1');

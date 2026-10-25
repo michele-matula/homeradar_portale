@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { LeadsResponse, Me } from '@homeradar/shared/api/types';
+import { isNewLead } from '@homeradar/shared/core/lead-groups';
 import { leadKeys } from '@homeradar/shared/core/leads';
 import { isDue, nextRecallCheck } from '@homeradar/shared/core/recall';
 import type { LeadState, LeadView, SweepStatus } from '@homeradar/shared/shared/types';
 import { api, errorText } from '../api';
+import { FilterPanel } from '../components/FilterPanel';
 import { Layout } from '../components/Layout';
 import { LeadDetail } from '../components/LeadDetail';
 import { LeadList } from '../components/LeadList';
@@ -13,8 +15,22 @@ import { EMPTY_FILTERS, filterLeads, initialTab, type LeadFilters, type Tab } fr
 import { loadFiltersOpen, loadSortByTab, saveFiltersOpen, saveSortByTab, type SortByTab } from '../prefs';
 import { leadKeyOf, navigate, usePath } from '../router';
 
-/** Sotto questa larghezza la scheda prende tutta la pagina (stessa soglia del CSS). */
-const narrow = () => typeof matchMedia === 'function' && matchMedia('(max-width: 899px)').matches;
+/** Sotto questa larghezza i filtri stanno dietro un bottone e la scheda prende tutta la pagina (stessa soglia del CSS). */
+const NARROW = '(max-width: 899px)';
+const narrow = () => typeof matchMedia === 'function' && matchMedia(NARROW).matches;
+
+/** Schermo stretto, aggiornato quando cambia la larghezza. */
+function useNarrow(): boolean {
+  const [value, setValue] = useState(narrow);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const m = matchMedia(NARROW);
+    const update = () => setValue(m.matches);
+    m.addEventListener('change', update);
+    return () => m.removeEventListener('change', update);
+  }, []);
+  return value;
+}
 
 /** Pagina dei lead: giro delle ricerche, lista con filtri e scheda del lead aperta (`/lead/<chiave>`). */
 export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void; connector?: ConnectorPort }) {
@@ -30,6 +46,8 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
   const [now, setNow] = useState(Date.now);
   /** Inizio del giro in corso, altrimenti dell'ultimo finito: i lead visti da allora sono nuovi. */
   const [newSince, setNewSince] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const isNarrow = useNarrow();
   const hasZone = me.comuni.length > 0;
   const listScroll = useRef(0);
   const wasOpen = useRef(selectedKey != null);
@@ -84,6 +102,8 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
   }, []);
 
   const tab: Tab = chosenTab ?? 'new';
+  // Altri filtri, un'altra scheda o un altro ordine: si riparte dalla prima pagina.
+  useEffect(() => setPage(1), [filters, tab, sortByTab]);
   const result = useMemo(() => filterLeads(leads ?? [], filters, tab, me.comuni, sortByTab, now, newSince), [leads, filters, tab, me.comuni, sortByTab, now, newSince]);
   // Anche la chiave di una fonte secondaria apre il suo lead.
   const selected = selectedKey ? (leads ?? []).find((l) => leadKeys(l).includes(selectedKey)) ?? null : null;
@@ -102,18 +122,38 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
 
   return (
     <Layout me={me} onSignOut={onSignOut} dueRecalls={dueRecalls} wide>
-      <Sweep
-        userId={me.id}
-        connector={connector}
-        hasZone={hasZone}
-        onFinished={reload}
-        onStatus={(s: SweepStatus) => setNewSince(s.running?.startedAt ?? s.last?.startedAt ?? null)}
-        onShowNew={() => {
-          setFilters({ ...EMPTY_FILTERS, newOnly: true });
-          setTab('new');
-          navigate('/');
-        }}
-      />
+      <div className="leadspage">
+      <aside className="leadspage__side" aria-label="Giro e filtri">
+        <Sweep
+          userId={me.id}
+          connector={connector}
+          hasZone={hasZone}
+          onFinished={reload}
+          onStatus={(s: SweepStatus) => setNewSince(s.running?.startedAt ?? s.last?.startedAt ?? null)}
+          onShowNew={() => {
+            setFilters({ ...EMPTY_FILTERS, newOnly: true });
+            setTab('new');
+            navigate('/');
+          }}
+        />
+        {hasZone && leads && (
+          <>
+            {isNarrow && (
+              <button
+                type="button"
+                className={`btn filterbar__toggle${result.tags.length ? ' filterbar__toggle--on' : ''}`}
+                aria-expanded={filtersOpen}
+                aria-controls="filters-panel"
+                onClick={toggleFilters}
+              >
+                {result.tags.length ? `Filtri (${result.tags.length})` : 'Filtri'} {filtersOpen ? '▴' : '▾'}
+              </button>
+            )}
+            {(!isNarrow || filtersOpen) && <FilterPanel result={result} filters={filters} setFilters={setFilters} zone={me.comuni} />}
+          </>
+        )}
+      </aside>
+      <div className="leadspage__main">
       {!hasZone ? (
         <section className="card">
           <p>L'amministratore non ti ha ancora assegnato una zona: quando lo farà, qui troverai i lead dei tuoi comuni.</p>
@@ -128,9 +168,8 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
       ) : leads === null ? (
         <p className="hint" aria-busy="true">Caricamento dei lead…</p>
       ) : (
-        <div className={selectedKey ? 'workspace workspace--detail' : 'workspace'}>
-          {/* Sul telefono la lista sparisce mentre la scheda è aperta: si ricorda dove era per tornarci. */}
-          <div className="workspace__list" onClickCapture={() => {
+        <>
+          <div onClickCapture={() => {
             if (!selectedKey) listScroll.current = window.scrollY;
           }}>
           <LeadList
@@ -141,14 +180,14 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
             setTab={setTab}
             sort={tab === 'recall' ? null : sortByTab[tab]}
             setSort={setSort}
-            filtersOpen={filtersOpen}
-            toggleFilters={toggleFilters}
-            zone={me.comuni}
+            page={page}
+            setPage={setPage}
             selectedKey={selectedKey}
+            isNew={(l) => isNewLead(l, newSince)}
             now={now}
           />
           </div>
-          <div className="workspace__detail">
+          <div className="leadspage__detail">
             {selected ? (
               <LeadDetail key={selected.listing.key} lead={selected} now={now} onSaved={(s) => replaceState(selected.listing.key, s)} onSplit={reload} onClose={() => navigate('/')} />
             ) : selectedKey ? (
@@ -159,15 +198,13 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
                   Torna ai lead
                 </button>
               </section>
-            ) : (
-              <section className="detail detail--empty">
-                <p className="hint">Scegli un lead dalla lista</p>
-              </section>
-            )}
+            ) : null}
           </div>
-        </div>
+        </>
       )}
       {error && leads && <p className="error" role="alert">{error}</p>}
+      </div>
+      </div>
     </Layout>
   );
 }
