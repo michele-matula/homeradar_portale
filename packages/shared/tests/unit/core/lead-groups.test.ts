@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildLeadViews, isHidden, isListed, mergeGroupState } from '@/core/lead-groups';
-import { DAY_MS, DEFAULT_SETTINGS, type LeadState, type ListingRecord, type Portal } from '@/shared/types';
+import { buildLeadViews, isHidden, isListed, isNewLead, mergeGroupState } from '@/core/lead-groups';
+import { DAY_MS, DEFAULT_SETTINGS, type LeadState, type LeadView, type ListingRecord, type Portal } from '@/shared/types';
 
 const NOW = Date.UTC(2026, 9, 16, 12);
 
@@ -187,5 +187,25 @@ describe('isHidden', () => {
     expect(isHidden(view({ status: 'contacted' }), NOW)).toBe(false);
     expect(isHidden(view({ notes: 'x' }), NOW)).toBe(false);
     expect(isHidden(view({ recallAt: NOW }), NOW)).toBe(false);
+  });
+});
+
+describe('isNewLead', () => {
+  const T = 1_000_000;
+  const view = (main: number, others: number[] = []) =>
+    ({ listing: rec('immobiliare', 1, { firstSeenAt: main }), others: others.map((f, i) => ({ listing: rec('idealista', i + 2, { firstSeenAt: f }) })) }) as unknown as LeadView;
+
+  it('nuovo se tutto il gruppo è visto dopo l\'inizio del giro', () => {
+    expect(isNewLead(view(T), T)).toBe(true);
+    expect(isNewLead(view(T + 5, [T + 9]), T)).toBe(true);
+  });
+
+  it('non nuovo se un annuncio del gruppo era già visto (altro portale o ripubblicato)', () => {
+    expect(isNewLead(view(T + 5, [T - 1]), T)).toBe(false);
+    expect(isNewLead(view(T - 1, [T + 5]), T)).toBe(false);
+  });
+
+  it('senza giro nessun nuovo', () => {
+    expect(isNewLead(view(T), null)).toBe(false);
   });
 });

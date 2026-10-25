@@ -158,6 +158,13 @@ describe('avanzamento del giro', () => {
     expect(screen.getByRole('button', { name: 'Ferma' })).toBeTruthy();
   });
 
+  it('ogni stato letto arriva a onStatus', async () => {
+    mockApi({ 'GET /api/sweep': { status: 200, body: { running: null, last: FINISHED } } });
+    const onStatus = vi.fn();
+    render(<Sweep userId="u1" connector={fakeConnector(() => ok(STATE)).port} phone={false} onStatus={onStatus} />);
+    await vi.waitFor(() => expect(onStatus).toHaveBeenCalledWith({ running: null, last: FINISHED }));
+  });
+
   it('a fine giro: riepilogo, motivi e Vedi i nuovi', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     let n = 0;
@@ -173,7 +180,7 @@ describe('avanzamento del giro', () => {
     expect(screen.getByText('Non trovati: Treviglio · Box (Subito).')).toBeTruthy();
     expect(onFinished).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Vedi i nuovi' }));
-    expect(onShowNew).toHaveBeenCalledWith(FINISHED.startedAt);
+    expect(onShowNew).toHaveBeenCalledWith();
     fireEvent.click(screen.getByRole('button', { name: 'Chiudi' }));
     expect(screen.queryByText('Giro completato in parte · 11 min')).toBeNull();
     expect(screen.getByRole('button', { name: 'Cerca' })).toBeTruthy();

@@ -29,6 +29,9 @@ function routes(extra: Routes = {}, leads: LeadView[] = [MAIN, OTHER]): Routes {
   return { ...AGENT_ROUTES, 'GET /api/leads': { status: 200, body: { leads, dueRecalls: 0 } }, ...extra };
 }
 const detail = () => screen.getByRole('region', { name: 'Scheda del lead' });
+/** Bottone di stato della scheda; acceso = `aria-checked`. */
+const status = (name: string) => within(detail()).getByRole('radio', { name });
+const checked = (name: string) => status(name).getAttribute('aria-checked');
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -49,17 +52,16 @@ describe('scheda del lead', () => {
     const calls = mockApi(routes({ 'PATCH /api/leads/state': (b) => ({ status: 200, body: { state: saved({ status: (b as { status: LeadState['status'] }).status }) } }) }));
     renderAt('/lead/immobiliare%3A1');
     await screen.findByRole('region', { name: 'Scheda del lead' });
-    fireEvent.change(within(detail()).getByRole('combobox', { name: 'Stato' }), { target: { value: 'contacted' } });
+    fireEvent.click(status('Contattato'));
     await vi.waitFor(() => expect(screen.getByRole('tab', { name: 'Contattati (1)' })).toBeTruthy());
     expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({ keys: ['immobiliare:1', 'idealista:2'], status: 'contacted' });
-    expect((within(detail()).getByRole('combobox', { name: 'Stato' }) as HTMLSelectElement).value).toBe('contacted');
+    expect(checked('Contattato')).toBe('true');
   });
 
   it('richiamo con scorciatoia', async () => {
     const calls = mockApi(routes({ 'PATCH /api/leads/state': (b) => ({ status: 200, body: { state: saved({ recallAt: (b as { recallAt: number }).recallAt }) } }) }));
     renderAt('/lead/immobiliare%3A1');
     await screen.findByRole('region', { name: 'Scheda del lead' });
-    fireEvent.click(within(detail()).getByRole('button', { name: 'Richiama…' }));
     fireEvent.click(within(detail()).getByRole('button', { name: 'Domani' }));
     await vi.waitFor(() => expect(within(detail()).getByRole('button', { name: 'Fatto' })).toBeTruthy());
     expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({ keys: ['immobiliare:1', 'idealista:2'], recallAt: addDays(startOfLocalDay(Date.now()), 1) });
@@ -82,10 +84,10 @@ describe('scheda del lead', () => {
     renderAt('/lead/immobiliare%3A1');
     await screen.findByRole('region', { name: 'Scheda del lead' });
     const d = within(detail());
-    fireEvent.change(d.getByRole('combobox', { name: 'Stato' }), { target: { value: 'discarded' } });
+    fireEvent.click(status('Scartato'));
     expect(await d.findByRole('alert')).toBeTruthy();
     expect(d.getByRole('alert').textContent).toBe('Impossibile impostare un richiamo su un lead scartato');
-    expect((d.getByRole('combobox', { name: 'Stato' }) as HTMLSelectElement).value).toBe('new');
+    expect(checked('Da lavorare')).toBe('true');
     const notes = d.getByRole('textbox', { name: 'Note' });
     fireEvent.change(notes, { target: { value: 'testo importante' } });
     fireEvent.blur(notes);
@@ -134,7 +136,7 @@ describe('scheda del lead', () => {
     const notes = d.getByRole('textbox', { name: 'Note' });
     fireEvent.change(notes, { target: { value: 'richiamare' } });
     fireEvent.blur(notes);
-    fireEvent.change(d.getByRole('combobox', { name: 'Stato' }), { target: { value: 'contacted' } });
+    fireEvent.click(status('Contattato'));
     await vi.waitFor(() => expect(w.bodies).toHaveLength(1));
     // Il secondo aspetta il primo: così il server li applica in ordine e ogni risposta contiene i precedenti.
     await act(async () => {});
@@ -142,7 +144,7 @@ describe('scheda del lead', () => {
     await w.release(0, 200, { state: saved({ notes: 'richiamare' }) });
     await vi.waitFor(() => expect(w.bodies).toHaveLength(2));
     await w.release(1, 200, { state: saved({ status: 'contacted', notes: 'richiamare' }) });
-    expect((d.getByRole('combobox', { name: 'Stato' }) as HTMLSelectElement).value).toBe('contacted');
+    expect(checked('Contattato')).toBe('true');
   });
 
   it("se l'ultimo salvataggio fallisce si vede l'errore e resta a video quello riuscito prima", async () => {
@@ -150,7 +152,7 @@ describe('scheda del lead', () => {
     renderAt('/lead/immobiliare%3A1');
     await screen.findByRole('region', { name: 'Scheda del lead' });
     const d = within(detail());
-    fireEvent.change(d.getByRole('combobox', { name: 'Stato' }), { target: { value: 'discarded' } });
+    fireEvent.click(status('Scartato'));
     const notes = d.getByRole('textbox', { name: 'Note' });
     fireEvent.change(notes, { target: { value: 'x' } });
     fireEvent.blur(notes);
@@ -159,7 +161,7 @@ describe('scheda del lead', () => {
     await vi.waitFor(() => expect(w.bodies).toHaveLength(2));
     await w.release(1, 500, { error: 'Errore del server' });
     expect(d.getByRole('alert').textContent).toBe('Errore del server');
-    expect((d.getByRole('combobox', { name: 'Stato' }) as HTMLSelectElement).value).toBe('discarded');
+    expect(checked('Scartato')).toBe('true');
   });
 
   it('Separa non parte due volte', async () => {
@@ -188,40 +190,74 @@ describe('scheda del lead', () => {
     expect(within(detail()).getByRole('heading', { name: 'Villa con giardino' })).toBeTruthy();
   });
 
-  /** Larghezza da telefono: sotto i 900 px la scheda prende la pagina. */
-  const narrowScreen = () =>
-    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q === '(max-width: 899px)', addEventListener() {}, removeEventListener() {} }));
-
-  it('su desktop chiudendo la scheda non si salta a una posizione vecchia', async () => {
-    const scrollTo = vi.fn();
-    vi.stubGlobal('scrollTo', scrollTo);
+  it('si apre come finestra sopra la lista e si chiude con Esc', async () => {
     mockApi(routes());
-    renderAt('/');
-    Object.defineProperty(window, 'scrollY', { value: 480, configurable: true });
-    fireEvent.click(await screen.findByRole('link', { name: 'Apri il lead: Villa con giardino' }));
-    await screen.findByRole('region', { name: 'Scheda del lead' });
-    fireEvent.click(screen.getByRole('button', { name: '← Lead' }));
+    renderAt('/lead/immobiliare%3A1');
+    const dialog = await screen.findByRole('dialog', { name: 'Scheda del lead' });
+    expect(within(dialog).getByText('Lead 1 di 2 · pagina 1')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Apri il lead: Bilocale' })).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
     expect(window.location.pathname).toBe('/');
-    expect(scrollTo).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('sul telefono tornando indietro filtri e posizione restano', async () => {
-    narrowScreen();
-    const scrollTo = vi.fn();
-    vi.stubGlobal('scrollTo', scrollTo);
+  it('una selezione iniziata dentro e finita sullo sfondo non chiude', async () => {
+    mockApi(routes());
+    renderAt('/lead/immobiliare%3A1');
+    const dialog = await screen.findByRole('dialog', { name: 'Scheda del lead' });
+    const backdrop = screen.getByTestId('modal-backdrop');
+    fireEvent.mouseDown(within(dialog).getByRole('textbox', { name: 'Note' }));
+    fireEvent.mouseUp(backdrop);
+    fireEvent.click(backdrop);
+    expect(window.location.pathname).toBe('/lead/immobiliare%3A1');
+    fireEvent.mouseDown(backdrop);
+    fireEvent.click(backdrop);
+    expect(window.location.pathname).toBe('/');
+  });
+
+  it('clic sullo sfondo chiude, clic dentro no', async () => {
+    mockApi(routes());
+    renderAt('/lead/immobiliare%3A1');
+    const dialog = await screen.findByRole('dialog', { name: 'Scheda del lead' });
+    fireEvent.click(within(dialog).getByRole('heading', { name: 'Villa con giardino' }));
+    expect(window.location.pathname).toBe('/lead/immobiliare%3A1');
+    fireEvent.mouseDown(screen.getByTestId('modal-backdrop'));
+    fireEvent.click(screen.getByTestId('modal-backdrop'));
+    expect(window.location.pathname).toBe('/');
+  });
+
+  it('chiudendo la finestra filtri e lista restano', async () => {
     mockApi(routes());
     renderAt('/');
     fireEvent.click(await screen.findByRole('radio', { name: 'Alta (1)' }));
-    Object.defineProperty(window, 'scrollY', { value: 480, configurable: true });
     fireEvent.click(screen.getByRole('link', { name: 'Apri il lead: Villa con giardino' }));
-    expect(window.location.pathname).toBe('/lead/immobiliare%3A1');
-    await screen.findByRole('region', { name: 'Scheda del lead' });
+    await screen.findByRole('dialog');
     act(() => {
       window.history.back();
     });
     await vi.waitFor(() => expect(window.location.pathname).toBe('/'));
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByRole('radio', { name: 'Alta (1)' }).getAttribute('aria-checked')).toBe('true');
-    await vi.waitFor(() => expect(scrollTo).toHaveBeenLastCalledWith(0, 480));
+  });
+
+  it('lead aperto da indirizzo ma non nella pagina: niente posizione', async () => {
+    const many = [MAIN, ...Array.from({ length: 30 }, (_, i) => lead({ key: `subito:${i + 10}`, title: `Casa ${i}`, priority: 'high', price: 1_000 + i }))];
+    mockApi(routes({}, many));
+    localStorage.setItem('homeradar.sortByTab', JSON.stringify({ new: 'price_asc' }));
+    renderAt('/lead/immobiliare%3A1');
+    const dialog = await screen.findByRole('dialog', { name: 'Scheda del lead' });
+    expect(within(dialog).queryByText(/^Lead d+ di/)).toBeNull();
+  });
+
+  it('prezzo al metro quadro e NUOVO', async () => {
+    const startedAt = Date.now() - 60_000;
+    const last = { startedAt, finishedAt: startedAt + 1, outcome: 'completed', portals: {}, notFound: [], newCount: 1, drops: 0, missing: 0 };
+    const fresh = lead({ key: 'subito:7', title: 'Appena trovato', firstSeenAt: startedAt + 1 });
+    mockApi(routes({ 'GET /api/sweep': { status: 200, body: { running: null, last } } }, [fresh]));
+    renderAt('/lead/subito%3A7');
+    await screen.findByRole('dialog');
+    expect(within(detail()).getByText('€ 1.875 al m²')).toBeTruthy();
+    await vi.waitFor(() => expect(within(detail()).getByText('NUOVO')).toBeTruthy());
   });
 
   it('una nota scritta si salva anche chiudendo la scheda senza uscire dal campo', async () => {
@@ -229,13 +265,13 @@ describe('scheda del lead', () => {
     renderAt('/lead/immobiliare%3A1');
     await screen.findByRole('region', { name: 'Scheda del lead' });
     fireEvent.change(within(detail()).getByRole('textbox', { name: 'Note' }), { target: { value: 'da non perdere' } });
-    fireEvent.click(screen.getByRole('button', { name: '← Lead' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
     await vi.waitFor(() => expect(calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ keys: ['immobiliare:1', 'idealista:2'], notes: 'da non perdere' }]));
   });
 
   it('una nota cambiata altrove si aggiorna e non viene sovrascritta da quella vecchia', () => {
     const calls = mockApi({});
-    const props = { now: NOW, onSaved: vi.fn(), onSplit: async () => {}, onClose: vi.fn() };
+    const props = { now: NOW, isNew: false, onSaved: vi.fn(), onSplit: async () => {} };
     const { rerender } = render(<LeadDetail lead={lead({ notes: 'vecchia' })} {...props} />);
     rerender(<LeadDetail lead={lead({ notes: 'nuova' })} {...props} />);
     const notes = screen.getByRole('textbox', { name: 'Note' }) as HTMLTextAreaElement;
@@ -245,11 +281,11 @@ describe('scheda del lead', () => {
     expect(calls.filter((c) => c.method === 'PATCH')).toEqual([]);
   });
 
-  it('«← Lead» chiude la scheda', async () => {
+  it('✕ chiude la finestra', async () => {
     mockApi(routes());
     renderAt('/lead/immobiliare%3A1');
-    await screen.findByRole('region', { name: 'Scheda del lead' });
-    fireEvent.click(screen.getByRole('button', { name: '← Lead' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Scheda del lead' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Chiudi' }));
     expect(window.location.pathname).toBe('/');
     expect(screen.queryByRole('region', { name: 'Scheda del lead' })).toBeNull();
   });

@@ -10,7 +10,7 @@ export function Cover({ covers, href, size = 'small' }: {
   covers: string[];
   /** Annuncio principale, aperto al clic; senza, la miniatura non è un link (sta già dentro un link). */
   href?: string;
-  size?: 'small' | 'large';
+  size?: 'small' | 'card' | 'large';
 }) {
   const [index, setIndex] = useState(0);
   const src = covers[index];

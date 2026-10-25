@@ -32,7 +32,7 @@ describe('lista dei lead', () => {
   it('cambiare scheda e filtrare per priorità', async () => {
     mockApi(routes());
     renderAt('/');
-    fireEvent.click(await screen.findByRole('tab', { name: /^Nuovi/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
     expect(rows()).toHaveLength(2);
     fireEvent.click(screen.getByRole('radio', { name: 'Alta (1)' }));
     expect(rows()).toEqual(['Apri il lead: Villa con giardino']);
@@ -41,35 +41,88 @@ describe('lista dei lead', () => {
   it('la ricerca a testo filtra tutte le schede', async () => {
     mockApi(routes());
     renderAt('/');
-    await screen.findByRole('tab', { name: /^Nuovi/ });
+    await screen.findByRole('tab', { name: /^Da lavorare/ });
     fireEvent.change(screen.getByRole('searchbox', { name: 'Cerca nei lead' }), { target: { value: 'villa' } });
-    expect(screen.getByRole('tab', { name: 'Nuovi (1)' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Da lavorare (1)' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Da contattare (0)' })).toBeTruthy();
   });
 
-  it('Filtri: il riquadro si apre, il sito filtra, l\'etichetta si toglie', async () => {
+  it('Filtri sempre visibili su schermo largo: il sito filtra, l\'etichetta si toglie', async () => {
     mockApi(routes());
     renderAt('/');
-    fireEvent.click(await screen.findByRole('tab', { name: /^Nuovi/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
+    expect(screen.queryByRole('button', { name: /^Filtri/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Azzera filtri' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /^Filtri/ }));
     fireEvent.click(within(screen.getByRole('group', { name: 'Filtra per sito' })).getByRole('button', { name: 'Subito (1)' }));
     expect(rows()).toEqual(['Apri il lead: Bilocale in centro']);
-    fireEvent.click(screen.getByRole('button', { name: /^Filtri/ }));
     expect(screen.getByRole('button', { name: 'Azzera filtri' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Togli il filtro Subito' }));
     expect(rows()).toHaveLength(2);
   });
 
+  it('sul telefono i filtri stanno dietro il bottone Filtri', async () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('max-width'), media: q, addEventListener() {}, removeEventListener() {} }));
+    mockApi(routes());
+    renderAt('/');
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
+    expect(screen.queryByRole('group', { name: 'Filtra per sito' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^Filtri/ }));
+    expect(screen.getByRole('group', { name: 'Filtra per sito' })).toBeTruthy();
+  });
+
+  it('i nuovi dell\'ultimo giro sono in cima e segnati', async () => {
+    const startedAt = Date.now() - 60_000;
+    const last = { startedAt, finishedAt: startedAt + 30_000, outcome: 'completed', portals: {}, notFound: [], newCount: 1, drops: 0, missing: 0 };
+    mockApi(routes(
+      [lead({ key: 'subito:1', title: 'Vecchio', firstSeenAt: startedAt - 86_400_000 }), lead({ key: 'subito:2', title: 'Appena trovato', priority: 'medium', firstSeenAt: startedAt + 1 })],
+      { 'GET /api/sweep': { status: 200, body: { running: null, last } } },
+    ));
+    renderAt('/');
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
+    await vi.waitFor(() => expect(rows()).toEqual(['Apri il lead: Appena trovato', 'Apri il lead: Vecchio']));
+    expect(screen.getByRole('heading', { name: 'Nuovi dall\'ultimo giro · 1' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Altri lead · 1' })).toBeTruthy();
+    expect(within(screen.getByRole('link', { name: 'Apri il lead: Appena trovato' })).getByText('NUOVO')).toBeTruthy();
+    expect(within(screen.getByRole('link', { name: 'Apri il lead: Vecchio' })).queryByText('NUOVO')).toBeNull();
+  });
+
+  it('25 per pagina; cambiando filtro si torna alla prima', async () => {
+    const many = Array.from({ length: 30 }, (_, i) => lead({ key: `subito:${i + 1}`, title: `Casa ${i + 1}`, priority: i < 28 ? 'high' : 'medium' }));
+    mockApi(routes(many));
+    renderAt('/');
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
+    expect(rows()).toHaveLength(25);
+    expect(screen.getByText('Lead 1–25 di 30')).toBeTruthy();
+    const pages = screen.getByRole('navigation', { name: 'Pagine' });
+    fireEvent.click(within(pages).getByRole('button', { name: '2' }));
+    expect(rows()).toHaveLength(5);
+    expect(within(pages).getByRole('button', { name: '2' }).getAttribute('aria-current')).toBe('page');
+    fireEvent.click(screen.getByRole('radio', { name: 'Media (2)' }));
+    expect(screen.getByText('Lead 1–2 di 2')).toBeTruthy();
+    expect(screen.queryByRole('navigation', { name: 'Pagine' })).toBeNull();
+  });
+
+  it('la scheda mostra locali, superficie, zona e il ribasso', async () => {
+    mockApi(routes([lead({
+      key: 'subito:1', title: 'Trilocale ribassato', price: 162_000, listing: { rooms: 3, surfaceM2: 95, city: 'Treviglio', zone: 'Centro' },
+      view: { evaluation: { ...lead().evaluation, listingKey: 'subito:1', dropPercent: 9.5, maxKnownPrice: 179_000 } },
+    })]));
+    renderAt('/');
+    const card = await screen.findByRole('link', { name: 'Apri il lead: Trilocale ribassato' });
+    expect(within(card).getByText('3 locali · 95 m² · Treviglio · Centro')).toBeTruthy();
+    expect(within(card).getByText('€ 179.000')).toBeTruthy();
+    expect(within(card).getByText('Ribassato −9,5%')).toBeTruthy();
+  });
+
   it('l\'ordinamento si ricorda per scheda', async () => {
     mockApi(routes());
     const { unmount } = renderAt('/');
-    fireEvent.click(await screen.findByRole('tab', { name: /^Nuovi/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
     fireEvent.change(screen.getByRole('combobox', { name: 'Ordina per' }), { target: { value: 'price_asc' } });
     expect(rows()).toEqual(['Apri il lead: Bilocale in centro', 'Apri il lead: Villa con giardino']);
     unmount();
     renderAt('/');
-    fireEvent.click(await screen.findByRole('tab', { name: /^Nuovi/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
     expect((screen.getByRole('combobox', { name: 'Ordina per' }) as HTMLSelectElement).value).toBe('price_asc');
   });
 
@@ -90,7 +143,7 @@ describe('lista dei lead', () => {
   it('scheda vuota con filtri: lo dice', async () => {
     mockApi(routes());
     renderAt('/');
-    fireEvent.click(await screen.findByRole('tab', { name: /^Nuovi/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
     fireEvent.change(screen.getByRole('searchbox', { name: 'Cerca nei lead' }), { target: { value: 'castello' } });
     expect(screen.getByText('Nessun lead «"castello"» in questa scheda.')).toBeTruthy();
   });
@@ -129,8 +182,8 @@ describe('lista dei lead', () => {
     await act(() => vi.advanceTimersByTimeAsync(3_000));
     fireEvent.click(await screen.findByRole('button', { name: 'Vedi i nuovi' }));
     expect(rows()).toEqual(['Apri il lead: Nuovo del giro']);
-    expect(screen.getByRole('button', { name: 'Togli il filtro Da questo giro' })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /^Nuovi/ }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Togli il filtro Solo nuovi' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /^Da lavorare/ }).getAttribute('aria-selected')).toBe('true');
   });
 
   it('tornando sulla pagina dopo la mezzanotte i richiami si ricalcolano', async () => {

@@ -1,5 +1,5 @@
 import { applyQuery, describeQuery, inComuni, OTHER_COMUNI, parseThousands, type LeadQuery } from '@homeradar/shared/core/lead-filters';
-import { seenSince } from '@homeradar/shared/core/lead-groups';
+import { isNewLead } from '@homeradar/shared/core/lead-groups';
 import { groupByRecall, groupByStatus, leadCategories, leadPortals, PRIORITY_LABELS, sortLeadsBy } from '@homeradar/shared/core/leads';
 import { isDue, type RecallKind } from '@homeradar/shared/core/recall';
 import { joinList } from '@homeradar/shared/shared/format';
@@ -13,7 +13,7 @@ import type { SortByTab } from '../prefs';
 
 export type Tab = 'recall' | LeadStatus;
 export const TABS: Tab[] = ['recall', ...LEAD_STATUSES];
-export const TAB_LABELS: Record<Tab, string> = { recall: 'Richiami', new: 'Nuovi', to_contact: 'Da contattare', contacted: 'Contattati', discarded: 'Scartati' };
+export const TAB_LABELS: Record<Tab, string> = { recall: 'Richiami', new: 'Da lavorare', to_contact: 'Da contattare', contacted: 'Contattati', discarded: 'Scartati' };
 
 export type PriorityFilter = 'all' | 'high' | 'medium' | 'verify';
 export const PRIORITY_FILTERS: PriorityFilter[] = ['all', 'high', 'medium', 'verify'];
@@ -36,16 +36,16 @@ export interface LeadFilters {
   /** Codici ISTAT della zona e/o `OTHER_COMUNI`; vuoto = tutti i comuni. */
   comuni: string[];
   missingOnly: boolean;
-  /** «Vedi i nuovi» del giro: lead con una fonte vista per la prima volta da questa data. */
-  since: number | null;
+  /** Solo i lead nuovi dell'ultimo giro (`isNewLead`). */
+  newOnly: boolean;
 }
 
 export const EMPTY_FILTERS: LeadFilters = {
-  text: '', minInput: '', maxInput: '', reservedOnly: false, priority: 'all', portals: [], multi: false, categories: [], comuni: [], missingOnly: false, since: null,
+  text: '', minInput: '', maxInput: '', reservedOnly: false, priority: 'all', portals: [], multi: false, categories: [], comuni: [], missingOnly: false, newOnly: false,
 };
 
 /** Filtri del riquadro «Filtri», mostrati come etichette che si tolgono con un clic. */
-export type TagKey = 'comuni' | 'portals' | 'multi' | 'categories' | 'price' | 'missingOnly' | 'since';
+export type TagKey = 'comuni' | 'portals' | 'multi' | 'categories' | 'price' | 'missingOnly' | 'newOnly';
 
 export interface FilteredLeads {
   tabCounts: Record<Tab, number>;
@@ -57,7 +57,12 @@ export interface FilteredLeads {
   multiCount: number;
   categoryCounts: Record<PropertyCategory, number>;
   missingCount: number;
+  /** Nuovi dell'ultimo giro fra quelli della scheda. */
+  newCount: number;
+  /** In ordine di lista: prima tutti i nuovi, poi gli altri. */
   visible: LeadView[];
+  /** Quanti dei primi `visible` sono il gruppo dei nuovi; 0 nella scheda "Richiami", che ha i suoi gruppi. */
+  newHead: number;
   recallGroups: { kind: RecallKind; leads: LeadView[] }[];
   tags: { key: TagKey; label: string }[];
   priceInvalid: { min: boolean; max: boolean };
@@ -77,10 +82,12 @@ export function queryOf(f: LeadFilters): LeadQuery {
   return { text: f.text, minPrice: min === 'invalid' ? null : min, maxPrice: max === 'invalid' ? null : max, reservedOnly: f.reservedOnly };
 }
 
-export function filterLeads(leads: LeadView[], f: LeadFilters, tab: Tab, zone: ComuneRef[], sortByTab: SortByTab, now: number): FilteredLeads {
+/** `newSince`: inizio dell'ultimo giro, da cui un lead è nuovo; null senza giri. */
+export function filterLeads(leads: LeadView[], f: LeadFilters, tab: Tab, zone: ComuneRef[], sortByTab: SortByTab, now: number, newSince: number | null): FilteredLeads {
   const query = queryOf(f);
-  // Ricerca, prezzo, non più visti e giro agiscono prima delle schede, così anche i loro conteggi li seguono.
-  const base = applyQuery(leads, query).filter((l) => (!f.missingOnly || isMissing(l)) && (f.since == null || seenSince(l, f.since)));
+  const isNew = (l: LeadView) => isNewLead(l, newSince);
+  // Ricerca, prezzo, non più visti e solo nuovi agiscono prima delle schede, così anche i loro conteggi li seguono.
+  const base = applyQuery(leads, query).filter((l) => (!f.missingOnly || isMissing(l)) && (!f.newOnly || isNew(l)));
   // Un comune tolto dalla zona esce dal filtro; senza zona il filtro per comune non c'è.
   const comuni = zone.length ? f.comuni.filter((c) => c === OTHER_COMUNI || zone.some((z) => z.istat === c)) : [];
   const byCategories = (list: LeadView[]) => (f.categories.length ? list.filter((l) => leadCategories(l).some((c) => f.categories.includes(c))) : list);
@@ -94,8 +101,11 @@ export function filterLeads(leads: LeadView[], f: LeadFilters, tab: Tab, zone: C
   const inPortals = byMulti(byPortals(tabLeads, f.portals), f.multi);
   const filtered = byPriority(inPortals, f.priority);
   const recallGroups = tab === 'recall' ? groupByRecall(filtered, now) : [];
-  // Nella scheda "Richiami" l'ordine è quello dei gruppi; altrove il criterio scelto per la scheda.
-  const visible = tab === 'recall' ? recallGroups.flatMap((g) => g.leads) : sortLeadsBy(filtered, sortByTab[tab]);
+  // Nella scheda "Richiami" l'ordine è quello dei gruppi; altrove prima i nuovi, poi gli altri, ognuno col criterio della scheda.
+  const fresh = tab === 'recall' ? [] : filtered.filter(isNew);
+  const visible = tab === 'recall'
+    ? recallGroups.flatMap((g) => g.leads)
+    : [...sortLeadsBy(fresh, sortByTab[tab]), ...sortLeadsBy(filtered.filter((l) => !isNew(l)), sortByTab[tab])];
 
   const comuneOptions = [...zone.map((z) => z.istat), OTHER_COMUNI];
   const forComuni = byPriority(byMulti(byPortals(inTab(beforeComuni, tab), f.portals), f.multi), f.priority);
@@ -113,7 +123,7 @@ export function filterLeads(leads: LeadView[], f: LeadFilters, tab: Tab, zone: C
     ...(f.categories.length ? [{ key: 'categories' as const, label: joinList(f.categories.map((c) => CATEGORY_LABELS[c]), 'e') }] : []),
     ...(priceTag ? [{ key: 'price' as const, label: priceTag }] : []),
     ...(f.missingOnly ? [{ key: 'missingOnly' as const, label: 'Non più visti' }] : []),
-    ...(f.since != null ? [{ key: 'since' as const, label: 'Da questo giro' }] : []),
+    ...(f.newOnly ? [{ key: 'newOnly' as const, label: 'Solo nuovi' }] : []),
   ];
 
   return {
@@ -125,7 +135,9 @@ export function filterLeads(leads: LeadView[], f: LeadFilters, tab: Tab, zone: C
     multiCount: byPriority(byPortals(tabLeads, f.portals), f.priority).filter((l) => leadPortals(l).length > 1).length,
     categoryCounts: countBy(PROPERTY_CATEGORIES, (c) => forCategories.filter((l) => leadCategories(l).includes(c)).length),
     missingCount: tabLeads.filter(isMissing).length,
+    newCount: filtered.filter(isNew).length,
     visible,
+    newHead: fresh.length,
     recallGroups,
     tags,
     priceInvalid: { min: minPrice === 'invalid', max: maxPrice === 'invalid' },
@@ -147,6 +159,17 @@ export function toggleIn<T>(all: readonly T[], chosen: T[], x: T): T[] {
 /** Si apre su "Richiami" solo se c'è qualcosa da fare oggi; poi decide l'agente. */
 export function initialTab(leads: LeadView[], now: number): Tab {
   return leads.some((l) => l.state.status !== 'discarded' && isDue(l.state.recallAt, now)) ? 'recall' : 'new';
+}
+
+export const PAGE_SIZE = 25;
+
+/** Una pagina della lista, da 1; una pagina fuori intervallo torna nell'intervallo. `from`/`to` da 1 per «Lead 1–25 di N», 0 se vuota. */
+export function pageOf<T>(items: T[], page: number, size = PAGE_SIZE): { items: T[]; page: number; pages: number; from: number; to: number } {
+  const pages = Math.max(1, Math.ceil(items.length / size));
+  const p = Math.min(Math.max(1, Math.floor(page)), pages);
+  const slice = items.slice((p - 1) * size, p * size);
+  const from = slice.length ? (p - 1) * size + 1 : 0;
+  return { items: slice, page: p, pages, from, to: slice.length ? from + slice.length - 1 : 0 };
 }
 
 /** Filtri diversi da quelli vuoti (ricerca e priorità comprese): serve per «Azzera filtri». */

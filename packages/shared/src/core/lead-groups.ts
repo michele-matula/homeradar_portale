@@ -130,9 +130,9 @@ export function buildLeadViews({ listings, states, snapshots, splits }: Archive,
   });
 }
 
-/** Un annuncio del gruppo è comparso per la prima volta da `since` (filtro "da questo giro"). */
-export function seenSince(v: LeadView, since: number): boolean {
-  return [v.listing, ...v.others.map((o) => o.listing)].some((x) => x.firstSeenAt >= since);
+/** Lead nuovo dell'ultimo giro: tutto il gruppo visto da `since`. Un immobile già noto, ripubblicato o comparso su un altro portale, non lo è. */
+export function isNewLead(v: LeadView, since: number | null): boolean {
+  return since != null && Math.min(v.listing.firstSeenAt, ...v.others.map((o) => o.listing.firstSeenAt)) >= since;
 }
 
 /** Un lead si mostra se ha segnali, è già stato lavorato o ha un richiamo: l'icona lo conta. */

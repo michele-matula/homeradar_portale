@@ -38,7 +38,7 @@ function reasons(r: SweepResult): string[] {
 const lastLine = (last: SweepResult) => `Ultimo giro: ${formatDateTime(last.startedAt)} · ${OUTCOMES[last.outcome]} · ${last.newCount} nuovi lead`;
 
 /** Giro delle ricerche: «Cerca» e «Ferma» (il connettore lo fa sul computer dell'agente), avanzamento e riepilogo. */
-export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), hasZone = true, onLinked, onFinished, onShowNew }: {
+export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), hasZone = true, onLinked, onFinished, onShowNew, onStatus }: {
   userId: string;
   connector?: ConnectorPort;
   phone?: boolean;
@@ -48,8 +48,10 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
   onLinked?(): void;
   /** Un giro in corso è appena finito: i lead vanno riletti. */
   onFinished?(): void;
-  /** «Vedi i nuovi»: lead visti per la prima volta da questo giro. */
-  onShowNew?(since: number): void;
+  /** «Vedi i nuovi»: solo i lead nuovi dell'ultimo giro. */
+  onShowNew?(): void;
+  /** Ogni stato letto da `/api/sweep`: la lista ne ricava da quando un lead è nuovo. */
+  onStatus?(status: SweepStatus): void;
 }) {
   const [status, setStatus] = useState<SweepStatus | null>(null);
   /** undefined = non ancora chiesto, null = connettore assente. */
@@ -62,7 +64,13 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
   const [dismissed, setDismissed] = useState<number | null>(null);
   const wasRunning = useRef(false);
 
-  const refresh = useCallback(() => api<SweepStatus>('GET', '/api/sweep').then(setStatus, () => {}), []);
+  // In un ref, così una funzione nuova a ogni disegno di chi la passa non rifà le letture.
+  const statusListener = useRef(onStatus);
+  statusListener.current = onStatus;
+  const refresh = useCallback(() => api<SweepStatus>('GET', '/api/sweep').then((s) => {
+    setStatus(s);
+    statusListener.current?.(s);
+  }, () => {}), []);
   const ping = useCallback(async () => {
     const r = await connector.send<ConnectorState>({ type: 'ping' });
     setConn(r?.ok ? r.data : null);
@@ -189,7 +197,7 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
         <p>{`${last.newCount} nuovi lead · ${last.drops} ribassi · ${last.missing} non più visti`}</p>
         {reasons(last).map((r) => <p key={r} className="sweep__reason">{r}</p>)}
         <div className="sweep__row">
-          <button type="button" className="btn btn--primary" onClick={() => onShowNew?.(last.startedAt)}>
+          <button type="button" className="btn btn--primary" onClick={() => onShowNew?.()}>
             Vedi i nuovi
           </button>
           <button type="button" className="btn" onClick={() => setDismissed(last.finishedAt)}>

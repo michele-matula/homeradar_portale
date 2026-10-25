@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { OTHER_COMUNI } from '@homeradar/shared/core/lead-filters';
 import { addDays, startOfLocalDay } from '@homeradar/shared/core/recall';
-import { EMPTY_FILTERS, filterLeads, initialTab, toggleIn, type LeadFilters, type Tab } from '../src/leads/filters';
+import { EMPTY_FILTERS, filterLeads, initialTab, pageOf, toggleIn, type LeadFilters, type Tab } from '../src/leads/filters';
 import { DEFAULT_SORT_BY_TAB } from '../src/prefs';
 import { lead, NOW, source } from './fixtures';
 
@@ -10,8 +10,8 @@ const ZONE = [
   { istat: '016053', name: 'Caravaggio', province: 'BG' },
 ];
 const today = startOfLocalDay(NOW);
-const run = (leads: ReturnType<typeof lead>[], f: Partial<LeadFilters> = {}, tab: Tab = 'new', sort = DEFAULT_SORT_BY_TAB) =>
-  filterLeads(leads, { ...EMPTY_FILTERS, ...f }, tab, ZONE, sort, NOW);
+const run = (leads: ReturnType<typeof lead>[], f: Partial<LeadFilters> = {}, tab: Tab = 'new', sort = DEFAULT_SORT_BY_TAB, newSince: number | null = null) =>
+  filterLeads(leads, { ...EMPTY_FILTERS, ...f }, tab, ZONE, sort, NOW, newSince);
 const keys = (r: ReturnType<typeof run>) => r.visible.map((l) => l.listing.key);
 
 describe('filtri dei lead', () => {
@@ -80,8 +80,52 @@ describe('filtri dei lead', () => {
     expect(keys(run([lead({ key: 'subito:1', price: null }), lead({ key: 'subito:2' })], { reservedOnly: true }))).toEqual(['subito:1']);
   });
 
-  it('since tiene i lead visti per la prima volta dal giro', () => {
-    expect(keys(run([lead({ key: 'subito:1', firstSeenAt: NOW - 1000 }), lead({ key: 'subito:2' })], { since: NOW - 5000 }))).toEqual(['subito:1']);
+  describe('nuovi dell\'ultimo giro', () => {
+    const T = NOW - 3_600_000;
+
+    it('nelle schede di stato i nuovi stanno in cima, ognuno col suo ordinamento', () => {
+      const leads = [
+        lead({ key: 'subito:1', price: 100_000, firstSeenAt: T - 1 }),
+        lead({ key: 'subito:2', price: 300_000, firstSeenAt: T + 1 }),
+        lead({ key: 'subito:3', price: 200_000, firstSeenAt: T + 2 }),
+        lead({ key: 'subito:4', price: 50_000, firstSeenAt: T - 1 }),
+      ];
+      const r = run(leads, {}, 'new', { ...DEFAULT_SORT_BY_TAB, new: 'price_asc' }, T);
+      expect(keys(r)).toEqual(['subito:3', 'subito:2', 'subito:4', 'subito:1']);
+      expect(r.newHead).toBe(2);
+      expect(r.newCount).toBe(2);
+    });
+
+    it('Solo nuovi', () => {
+      const r = run([lead({ key: 'subito:1', firstSeenAt: T + 1 }), lead({ key: 'subito:2', firstSeenAt: T - 1 })], { newOnly: true }, 'new', DEFAULT_SORT_BY_TAB, T);
+      expect(keys(r)).toEqual(['subito:1']);
+      expect(r.newCount).toBe(1);
+      expect(r.tags.map((t) => t.label)).toEqual(['Solo nuovi']);
+    });
+
+    it('un lead con un annuncio già visto non è nuovo', () => {
+      const r = run([lead({ key: 'subito:1', firstSeenAt: T + 1, others: [source('idealista:2', { firstSeenAt: T - 1 })] })], {}, 'new', DEFAULT_SORT_BY_TAB, T);
+      expect(r.newHead).toBe(0);
+    });
+
+    it('nella scheda Richiami niente gruppo dei nuovi', () => {
+      const r = run([lead({ key: 'subito:1', firstSeenAt: T + 1, recallAt: today })], {}, 'recall', DEFAULT_SORT_BY_TAB, T);
+      expect(r.newHead).toBe(0);
+    });
+
+    it('senza giro nessun nuovo', () => {
+      expect(run([lead({ key: 'subito:1', firstSeenAt: T + 1 })]).newHead).toBe(0);
+    });
+  });
+
+  it('pagine da 25', () => {
+    const xs = Array.from({ length: 60 }, (_, i) => i);
+    expect(pageOf(xs, 1)).toMatchObject({ page: 1, pages: 3, from: 1, to: 25 });
+    expect(pageOf(xs, 3)).toMatchObject({ page: 3, from: 51, to: 60 });
+    expect(pageOf(xs, 3).items).toHaveLength(10);
+    expect(pageOf(xs, 9).page).toBe(3);
+    expect(pageOf(xs, 0).page).toBe(1);
+    expect(pageOf([], 4)).toMatchObject({ items: [], page: 1, pages: 1, from: 0, to: 0 });
   });
 
   it('non più visti', () => {

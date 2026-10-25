@@ -1,44 +1,39 @@
-import { Fragment, type ReactNode } from 'react';
-import { OTHER_COMUNI } from '@homeradar/shared/core/lead-filters';
+import { useRef, type ReactNode } from 'react';
 import { RECALL_GROUP_LABELS, SORT_KEYS, SORT_LABELS, type SortKey } from '@homeradar/shared/core/leads';
-import { CATEGORY_LABELS, PORTAL_TAGS, PORTALS, PROPERTY_CATEGORIES, type ComuneRef } from '@homeradar/shared/shared/types';
-import {
-  anyFilter, clearTag, EMPTY_FILTERS, PRIORITY_FILTER_LABELS, PRIORITY_FILTERS, TAB_LABELS, TABS, toggleIn,
-  type FilteredLeads, type LeadFilters, type Tab,
-} from '../leads/filters';
+import type { RecallKind } from '@homeradar/shared/core/recall';
+import type { LeadView } from '@homeradar/shared/shared/types';
+import { anyFilter, clearTag, EMPTY_FILTERS, pageOf, PRIORITY_FILTER_LABELS, TAB_LABELS, TABS, type FilteredLeads, type LeadFilters, type Tab } from '../leads/filters';
 import { ExportBar } from './ExportBar';
 import { LeadRow } from './LeadRow';
+import { Pager } from './Pager';
 
+type GroupKey = RecallKind | 'new' | 'other';
 
-/** Bottone a pillola di un filtro con il suo conteggio; spento se non c'è niente da trovare. */
-function Chip({ label, count, on, onClick, className = '' }: { label: string; count?: number; on: boolean; onClick(): void; className?: string }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      aria-label={count == null ? label : `${label} (${count})`}
-      className={`chip${className}${on ? ' chip--on' : ''}`}
-      disabled={count === 0 && !on}
-      onClick={onClick}
-    >
-      {label} {count != null && <span className="chip__count">{count}</span>}
-    </button>
-  );
+/**
+ * Righe della pagina con i titoli dei gruppi presenti: nuovi e altri nelle schede di stato, scadenze nella scheda
+ * "Richiami". `offset`: posizione in `visible` della prima riga della pagina.
+ */
+function pageRows(result: FilteredLeads, tab: Tab, items: LeadView[], offset: number, render: (l: LeadView, inNewGroup: boolean) => ReactNode): ReactNode[] {
+  const kindOf = new Map(result.recallGroups.flatMap((g) => g.leads.map((l) => [l.listing.key, g.kind] as const)));
+  const out: ReactNode[] = [];
+  let group: GroupKey | null = null;
+  items.forEach((l, i) => {
+    const inNewGroup = offset + i < result.newHead;
+    const next: GroupKey | null = tab === 'recall' ? kindOf.get(l.listing.key) ?? null : result.newHead > 0 ? (inNewGroup ? 'new' : 'other') : null;
+    if (next && next !== group) {
+      const title = next === 'new' ? `Nuovi dall'ultimo giro · ${result.newHead}`
+        : next === 'other' ? `Altri lead · ${result.visible.length - result.newHead}`
+        : RECALL_GROUP_LABELS[next];
+      out.push(<li key={`group-${next}`} className={`leads__group leads__group--${next}`}><h3>{title}</h3></li>);
+    }
+    group = next;
+    out.push(render(l, inNewGroup));
+  });
+  return out;
 }
 
-function Section({ title, label, children }: { title: string; label: string; children: ReactNode }) {
-  return (
-    <section className="drawer__section">
-      <h4 className="drawer__title">{title}</h4>
-      <div className="filters" role="group" aria-label={label}>
-        {children}
-      </div>
-    </section>
-  );
-}
-
-/** Schede, ricerca, filtri, ordinamento e righe della lista. */
-export function LeadList({ result, filters, setFilters, tab, setTab, sort, setSort, filtersOpen, toggleFilters, zone, selectedKey, now }: {
+/** Colonna centrale: schede di stato, ricerca, filtri attivi, ordinamento, schede dei lead a pagine. */
+export function LeadList({ result, filters, setFilters, tab, setTab, sort, setSort, page, setPage, selectedKey, isNew, now }: {
   result: FilteredLeads;
   filters: LeadFilters;
   setFilters(f: LeadFilters): void;
@@ -46,23 +41,29 @@ export function LeadList({ result, filters, setFilters, tab, setTab, sort, setSo
   setTab(t: Tab): void;
   sort: SortKey | null;
   setSort(k: SortKey): void;
-  filtersOpen: boolean;
-  toggleFilters(): void;
-  zone: ComuneRef[];
+  page: number;
+  setPage(p: number): void;
   selectedKey: string | null;
+  /** Nuovo dell'ultimo giro: nella scheda "Richiami" non c'è il gruppo, ma il segno sì. */
+  isNew(l: LeadView): boolean;
   now: number;
 }) {
   const set = (patch: Partial<LeadFilters>) => setFilters({ ...filters, ...patch });
   const { visible, tags } = result;
-  const comuneName = (c: string) => (c === OTHER_COMUNI ? 'Altri comuni' : zone.find((z) => z.istat === c)?.name ?? c);
+  const top = useRef<HTMLDivElement>(null);
+  const shown = pageOf(visible, page);
   const emptyTag = [
     ...(filters.priority === 'all' ? [] : [PRIORITY_FILTER_LABELS[filters.priority]]),
     ...tags.map((t) => t.label),
     ...(filters.text.trim() ? [`"${filters.text.trim()}"`] : []),
   ];
+  const goTo = (p: number) => {
+    setPage(p);
+    top.current?.scrollIntoView?.({ block: 'start' });
+  };
 
   return (
-    <div className="leadlist">
+    <div className="leadlist" ref={top}>
       <nav className="tabs" role="tablist">
         {TABS.map((t) => {
           const due = t === 'recall' && result.dueCount > 0;
@@ -77,8 +78,8 @@ export function LeadList({ result, filters, setFilters, tab, setTab, sort, setSo
               className={t === tab ? 'tab tab--on' : 'tab'}
               onClick={() => setTab(t)}
             >
-              <span className={due ? 'tab__count tab__count--due' : 'tab__count'}>{count}</span>
               <span className="tab__label">{TAB_LABELS[t]}</span>
+              <span className={due ? 'tab__count tab__count--due' : 'tab__count'}>{count}</span>
             </button>
           );
         })}
@@ -93,129 +94,31 @@ export function LeadList({ result, filters, setFilters, tab, setTab, sort, setSo
           onChange={(e) => set({ text: e.target.value })}
         />
       </div>
-      <div className="filters" role="radiogroup" aria-label="Filtra per priorità">
-        {PRIORITY_FILTERS.map((p) => {
-          const count = result.priorityCounts[p];
-          const on = p === filters.priority;
-          return (
-            <button
-              key={p}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              aria-label={`${PRIORITY_FILTER_LABELS[p]} (${count})`}
-              className={`chip chip--${p}${on ? ' chip--on' : ''}`}
-              disabled={count === 0 && !on}
-              onClick={() => set({ priority: p })}
-            >
-              {PRIORITY_FILTER_LABELS[p]} <span className="chip__count">{count}</span>
+      {anyFilter(filters) && (
+        <div className="filterbar">
+          {tags.map((t) => (
+            <button key={t.key} type="button" className="filter-tag" aria-label={`Togli il filtro ${t.label}`} title="Togli il filtro" onClick={() => setFilters(clearTag(filters, t.key))}>
+              {t.label} ✕
             </button>
-          );
-        })}
-      </div>
-      <div className="filterbar">
-        <button
-          type="button"
-          className={`btn btn--small filterbar__toggle${tags.length ? ' filterbar__toggle--on' : ''}`}
-          aria-expanded={filtersOpen}
-          aria-controls="filters-drawer"
-          onClick={toggleFilters}
-        >
-          {tags.length ? `Filtri (${tags.length})` : 'Filtri'} {filtersOpen ? '▴' : '▾'}
-        </button>
-        {!filtersOpen && tags.map((t) => (
-          <button key={t.key} type="button" className="filter-tag" aria-label={`Togli il filtro ${t.label}`} title="Togli il filtro" onClick={() => setFilters(clearTag(filters, t.key))}>
-            {t.label} ✕
-          </button>
-        ))}
-        {anyFilter(filters) && (
+          ))}
           <button type="button" className="btn btn--small filterbar__reset" onClick={() => setFilters(EMPTY_FILTERS)}>
             Azzera filtri
           </button>
-        )}
-      </div>
-      {filtersOpen && (
-        <div className="drawer" id="filters-drawer">
-          {zone.length > 0 && (
-            <Section title="Comune" label="Filtra per comune">
-              <Chip label="Tutti i comuni" on={filters.comuni.length === 0} onClick={() => set({ comuni: [] })} />
-              {[...zone.map((z) => z.istat), OTHER_COMUNI].map((c) => (
-                <Chip
-                  key={c}
-                  label={comuneName(c)}
-                  count={result.comuneCounts[c]}
-                  on={filters.comuni.includes(c)}
-                  onClick={() => set({ comuni: toggleIn([...zone.map((z) => z.istat), OTHER_COMUNI], filters.comuni, c) })}
-                />
-              ))}
-            </Section>
-          )}
-          <Section title="Sito" label="Filtra per sito">
-            <Chip label="Tutti i siti" on={filters.portals.length === 0} onClick={() => set({ portals: [] })} />
-            {PORTALS.map((p) => (
-              <Chip key={p} label={PORTAL_TAGS[p]} count={result.portalCounts[p]} on={filters.portals.includes(p)} onClick={() => set({ portals: toggleIn(PORTALS, filters.portals, p) })} />
-            ))}
-            <Chip label="Su più portali" count={result.multiCount} on={filters.multi} onClick={() => set({ multi: !filters.multi })} />
-          </Section>
-          <Section title="Categoria" label="Filtra per categoria">
-            {PROPERTY_CATEGORIES.map((c) => (
-              <Chip
-                key={c}
-                label={CATEGORY_LABELS[c]}
-                count={result.categoryCounts[c]}
-                on={filters.categories.includes(c)}
-                onClick={() => set({ categories: toggleIn(PROPERTY_CATEGORIES, filters.categories, c) })}
-              />
-            ))}
-          </Section>
-          <section className="drawer__section">
-            <h4 className="drawer__title">Prezzo</h4>
-            <div className="price">
-              <span className="price__label">da</span>
-              <input
-                className="field price__input"
-                inputMode="decimal"
-                aria-label="Prezzo minimo in migliaia di euro"
-                aria-invalid={result.priceInvalid.min}
-                value={filters.minInput}
-                onChange={(e) => set({ minInput: e.target.value, reservedOnly: false })}
-              />
-              <span className="price__label">a</span>
-              <input
-                className="field price__input"
-                inputMode="decimal"
-                aria-label="Prezzo massimo in migliaia di euro"
-                aria-invalid={result.priceInvalid.max}
-                value={filters.maxInput}
-                onChange={(e) => set({ maxInput: e.target.value, reservedOnly: false })}
-              />
-              <span className="price__label">k€</span>
-              <button
-                type="button"
-                className="btn btn--small"
-                aria-pressed={filters.reservedOnly}
-                onClick={() => set(filters.reservedOnly ? { reservedOnly: false } : { reservedOnly: true, minInput: '', maxInput: '' })}
-              >
-                Solo trattativa riservata
-              </button>
-            </div>
-          </section>
-          <Section title="Altro" label="Altri filtri">
-            <Chip label="Non più visti" count={result.missingCount} on={filters.missingOnly} onClick={() => set({ missingOnly: !filters.missingOnly })} />
-            {filters.since != null && <Chip label="Da questo giro ✕" on onClick={() => set({ since: null })} />}
-          </Section>
         </div>
       )}
-      {sort && (
-        <label className="sort">
-          <span className="sort__label">Ordina per</span>
-          <select className="field field--select" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-            {SORT_KEYS.map((k) => (
-              <option key={k} value={k}>{SORT_LABELS[k]}</option>
-            ))}
-          </select>
-        </label>
-      )}
+      <div className="leadlist__bar">
+        <h2 className="leadlist__count">{`${visible.length} lead`}</h2>
+        {sort && (
+          <label className="sort">
+            <span className="sort__label">Ordina per</span>
+            <select className="field field--select" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+              {SORT_KEYS.map((k) => (
+                <option key={k} value={k}>{SORT_LABELS[k]}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
       {visible.length === 0 ? (
         <div className="empty">
           <p>
@@ -228,17 +131,13 @@ export function LeadList({ result, filters, setFilters, tab, setTab, sort, setSo
         </div>
       ) : (
         <>
-          <p className="leadlist__count">{`${visible.length} lead`}</p>
           <ul className="leads">
-            {(tab === 'recall' ? result.recallGroups : [{ kind: null, leads: visible }]).map((g) => (
-              <Fragment key={g.kind ?? 'all'}>
-                {g.kind && <li className="leads__group"><h3>{RECALL_GROUP_LABELS[g.kind]}</h3></li>}
-                {g.leads.map((l) => (
-                  <LeadRow key={l.listing.key} lead={l} now={now} selected={l.listing.key === selectedKey} />
-                ))}
-              </Fragment>
+            {pageRows(result, tab, shown.items, shown.from - 1, (l, inNewGroup) => (
+              <LeadRow key={l.listing.key} lead={l} now={now} selected={l.listing.key === selectedKey} isNew={inNewGroup || isNew(l)} />
             ))}
           </ul>
+          <p className="leadlist__range">{`Lead ${shown.from}–${shown.to} di ${visible.length}`}</p>
+          <Pager page={shown.page} pages={shown.pages} onPage={goTo} />
         </>
       )}
       <ExportBar leads={visible} />

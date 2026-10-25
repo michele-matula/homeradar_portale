@@ -1,5 +1,5 @@
 import type { RunReport, SweepPlan } from '@homeradar/shared/api/connector';
-import { seenSince } from '@homeradar/shared/core/lead-groups';
+import { isNewLead } from '@homeradar/shared/core/lead-groups';
 import { MISSING_SWEEPS } from '@homeradar/shared/core/missing';
 import { searchesFor } from '@homeradar/shared/core/searches';
 import {
@@ -72,7 +72,7 @@ function portalTotals(runs: RunRow[]): Partial<Record<Portal, { pages: number; p
 async function newLeadsSince(db: D1Database, userId: string | null, since: number, now: number): Promise<number> {
   const user = userId ? await findUserById(db, userId) : null;
   if (!user) return 0;
-  return (await agentLeads(db, user, now)).filter((v) => v.state.status === 'new' && seenSince(v, since)).length;
+  return (await agentLeads(db, user, now)).filter((v) => isNewLead(v, since)).length;
 }
 
 /**

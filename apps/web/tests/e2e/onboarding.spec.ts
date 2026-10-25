@@ -41,10 +41,13 @@ test('invito → accesso → lead', async ({ page, browser }) => {
   // Lo stato di un lead si salva sul server.
   await agent.getByRole('link', { name: 'Apri il lead: Trilocale in centro' }).click();
   const detail = agent.getByRole('region', { name: 'Scheda del lead' });
-  await detail.getByRole('combobox', { name: 'Stato' }).selectOption({ label: 'Contattato' });
+  await detail.getByRole('radio', { name: 'Contattato' }).click();
   await expect(agent.getByRole('tab', { name: /^Contattati \(1\)/ })).toBeVisible();
   await agent.reload();
-  await expect(agent.getByRole('region', { name: 'Scheda del lead' }).getByRole('combobox', { name: 'Stato' })).toHaveValue('contacted');
+  await expect(agent.getByRole('region', { name: 'Scheda del lead' }).getByRole('radio', { name: 'Contattato' })).toHaveAttribute('aria-checked', 'true');
+  // La finestra si chiude con Esc e la lista è sotto.
+  await agent.keyboard.press('Escape');
+  await expect(agent.getByRole('dialog')).toHaveCount(0);
 
   // Esce e rientra con la sua password.
   await agent.getByRole('button', { name: 'Esci' }).click();
