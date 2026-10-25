@@ -201,12 +201,27 @@ describe('scheda del lead', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('una selezione iniziata dentro e finita sullo sfondo non chiude', async () => {
+    mockApi(routes());
+    renderAt('/lead/immobiliare%3A1');
+    const dialog = await screen.findByRole('dialog', { name: 'Scheda del lead' });
+    const backdrop = screen.getByTestId('modal-backdrop');
+    fireEvent.mouseDown(within(dialog).getByRole('textbox', { name: 'Note' }));
+    fireEvent.mouseUp(backdrop);
+    fireEvent.click(backdrop);
+    expect(window.location.pathname).toBe('/lead/immobiliare%3A1');
+    fireEvent.mouseDown(backdrop);
+    fireEvent.click(backdrop);
+    expect(window.location.pathname).toBe('/');
+  });
+
   it('clic sullo sfondo chiude, clic dentro no', async () => {
     mockApi(routes());
     renderAt('/lead/immobiliare%3A1');
     const dialog = await screen.findByRole('dialog', { name: 'Scheda del lead' });
     fireEvent.click(within(dialog).getByRole('heading', { name: 'Villa con giardino' }));
     expect(window.location.pathname).toBe('/lead/immobiliare%3A1');
+    fireEvent.mouseDown(screen.getByTestId('modal-backdrop'));
     fireEvent.click(screen.getByTestId('modal-backdrop'));
     expect(window.location.pathname).toBe('/');
   });

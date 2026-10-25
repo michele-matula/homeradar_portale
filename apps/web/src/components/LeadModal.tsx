@@ -8,6 +8,7 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
  */
 export function LeadModal({ onClose, position, children }: { onClose(): void; position: string | null; children: ReactNode }) {
   const box = useRef<HTMLDivElement>(null);
+  const pressedOutside = useRef(false);
   const close = useRef(onClose);
   close.current = onClose;
 
@@ -43,9 +44,18 @@ export function LeadModal({ onClose, position, children }: { onClose(): void; po
   }, []);
 
   return (
-    <div className="modal" data-testid="modal-backdrop" onClick={(e) => {
-      if (e.target === e.currentTarget) onClose();
-    }}>
+    <div
+      className="modal"
+      data-testid="modal-backdrop"
+      // Solo un clic iniziato e finito sullo sfondo: una selezione di testo rilasciata fuori non chiude la finestra.
+      onMouseDown={(e) => {
+        pressedOutside.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && pressedOutside.current) onClose();
+        pressedOutside.current = false;
+      }}
+    >
       <div className="modal__box" role="dialog" aria-modal="true" aria-label="Scheda del lead" tabIndex={-1} ref={box}>
         <div className="modal__top">
           <span className="modal__position">{position}</span>
