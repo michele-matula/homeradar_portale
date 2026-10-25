@@ -32,7 +32,7 @@ describe('lista dei lead', () => {
   it('cambiare scheda e filtrare per priorità', async () => {
     mockApi(routes());
     renderAt('/');
-    fireEvent.click(await screen.findByRole('tab', { name: /^Nuovi/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
     expect(rows()).toHaveLength(2);
     fireEvent.click(screen.getByRole('radio', { name: 'Alta (1)' }));
     expect(rows()).toEqual(['Apri il lead: Villa con giardino']);
@@ -41,16 +41,16 @@ describe('lista dei lead', () => {
   it('la ricerca a testo filtra tutte le schede', async () => {
     mockApi(routes());
     renderAt('/');
-    await screen.findByRole('tab', { name: /^Nuovi/ });
+    await screen.findByRole('tab', { name: /^Da lavorare/ });
     fireEvent.change(screen.getByRole('searchbox', { name: 'Cerca nei lead' }), { target: { value: 'villa' } });
-    expect(screen.getByRole('tab', { name: 'Nuovi (1)' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Da lavorare (1)' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Da contattare (0)' })).toBeTruthy();
   });
 
   it('Filtri: il riquadro si apre, il sito filtra, l\'etichetta si toglie', async () => {
     mockApi(routes());
     renderAt('/');
-    fireEvent.click(await screen.findByRole('tab', { name: /^Nuovi/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
     expect(screen.queryByRole('button', { name: 'Azzera filtri' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /^Filtri/ }));
     fireEvent.click(within(screen.getByRole('group', { name: 'Filtra per sito' })).getByRole('button', { name: 'Subito (1)' }));
@@ -64,12 +64,12 @@ describe('lista dei lead', () => {
   it('l\'ordinamento si ricorda per scheda', async () => {
     mockApi(routes());
     const { unmount } = renderAt('/');
-    fireEvent.click(await screen.findByRole('tab', { name: /^Nuovi/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
     fireEvent.change(screen.getByRole('combobox', { name: 'Ordina per' }), { target: { value: 'price_asc' } });
     expect(rows()).toEqual(['Apri il lead: Bilocale in centro', 'Apri il lead: Villa con giardino']);
     unmount();
     renderAt('/');
-    fireEvent.click(await screen.findByRole('tab', { name: /^Nuovi/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
     expect((screen.getByRole('combobox', { name: 'Ordina per' }) as HTMLSelectElement).value).toBe('price_asc');
   });
 
@@ -90,7 +90,7 @@ describe('lista dei lead', () => {
   it('scheda vuota con filtri: lo dice', async () => {
     mockApi(routes());
     renderAt('/');
-    fireEvent.click(await screen.findByRole('tab', { name: /^Nuovi/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
     fireEvent.change(screen.getByRole('searchbox', { name: 'Cerca nei lead' }), { target: { value: 'castello' } });
     expect(screen.getByText('Nessun lead «"castello"» in questa scheda.')).toBeTruthy();
   });
@@ -129,8 +129,8 @@ describe('lista dei lead', () => {
     await act(() => vi.advanceTimersByTimeAsync(3_000));
     fireEvent.click(await screen.findByRole('button', { name: 'Vedi i nuovi' }));
     expect(rows()).toEqual(['Apri il lead: Nuovo del giro']);
-    expect(screen.getByRole('button', { name: 'Togli il filtro Da questo giro' })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: /^Nuovi/ }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Togli il filtro Solo nuovi' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /^Da lavorare/ }).getAttribute('aria-selected')).toBe('true');
   });
 
   it('tornando sulla pagina dopo la mezzanotte i richiami si ricalcolano', async () => {

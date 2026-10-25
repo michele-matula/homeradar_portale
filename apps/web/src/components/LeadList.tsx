@@ -202,7 +202,7 @@ export function LeadList({ result, filters, setFilters, tab, setTab, sort, setSo
           </section>
           <Section title="Altro" label="Altri filtri">
             <Chip label="Non più visti" count={result.missingCount} on={filters.missingOnly} onClick={() => set({ missingOnly: !filters.missingOnly })} />
-            {filters.since != null && <Chip label="Da questo giro ✕" on onClick={() => set({ since: null })} />}
+            <Chip label="Solo nuovi" count={result.newCount} on={filters.newOnly} onClick={() => set({ newOnly: !filters.newOnly })} />
           </Section>
         </div>
       )}

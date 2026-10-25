@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { LeadsResponse, Me } from '@homeradar/shared/api/types';
 import { leadKeys } from '@homeradar/shared/core/leads';
 import { isDue, nextRecallCheck } from '@homeradar/shared/core/recall';
-import type { LeadState, LeadView } from '@homeradar/shared/shared/types';
+import type { LeadState, LeadView, SweepStatus } from '@homeradar/shared/shared/types';
 import { api, errorText } from '../api';
 import { Layout } from '../components/Layout';
 import { LeadDetail } from '../components/LeadDetail';
@@ -28,6 +28,8 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
   const [sortByTab, setSortByTab] = useState<SortByTab>(loadSortByTab);
   const [filtersOpen, setFiltersOpen] = useState(loadFiltersOpen);
   const [now, setNow] = useState(Date.now);
+  /** Inizio del giro in corso, altrimenti dell'ultimo finito: i lead visti da allora sono nuovi. */
+  const [newSince, setNewSince] = useState<number | null>(null);
   const hasZone = me.comuni.length > 0;
   const listScroll = useRef(0);
   const wasOpen = useRef(selectedKey != null);
@@ -82,7 +84,7 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
   }, []);
 
   const tab: Tab = chosenTab ?? 'new';
-  const result = useMemo(() => filterLeads(leads ?? [], filters, tab, me.comuni, sortByTab, now), [leads, filters, tab, me.comuni, sortByTab, now]);
+  const result = useMemo(() => filterLeads(leads ?? [], filters, tab, me.comuni, sortByTab, now, newSince), [leads, filters, tab, me.comuni, sortByTab, now, newSince]);
   // Anche la chiave di una fonte secondaria apre il suo lead.
   const selected = selectedKey ? (leads ?? []).find((l) => leadKeys(l).includes(selectedKey)) ?? null : null;
   const dueRecalls =(leads ?? []).filter((l) => l.state.status !== 'discarded' && isDue(l.state.recallAt, now)).length;
@@ -105,8 +107,9 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
         connector={connector}
         hasZone={hasZone}
         onFinished={reload}
-        onShowNew={(since) => {
-          setFilters({ ...EMPTY_FILTERS, since });
+        onStatus={(s: SweepStatus) => setNewSince(s.running?.startedAt ?? s.last?.startedAt ?? null)}
+        onShowNew={() => {
+          setFilters({ ...EMPTY_FILTERS, newOnly: true });
           setTab('new');
           navigate('/');
         }}
