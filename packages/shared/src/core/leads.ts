@@ -10,7 +10,7 @@ export function priorityLabel(priority: Priority, portal: Portal): string {
   return priority === 'verify' && portal !== 'immobiliare' ? 'Età incerta' : PRIORITY_LABELS[priority];
 }
 
-export const STATUS_LABELS: Record<LeadStatus, string> = { new: 'Nuovo', to_contact: 'Da contattare', contacted: 'Contattato', discarded: 'Scartato' };
+export const STATUS_LABELS: Record<LeadStatus, string> = { new: 'Da lavorare', to_contact: 'Da contattare', contacted: 'Contattato', discarded: 'Scartato' };
 
 /** Chiavi di tutti gli annunci del lead: il principale per primo. */
 export function leadKeys(l: LeadView): string[] {

@@ -23,6 +23,7 @@ const lead: LeadView = {
 };
 
 describe('toExportRows', () => {
+it('lo stato "new" si esporta come «Da lavorare»', () => {    expect(toExportRows([{ ...lead, state: { ...lead.state, status: 'new' } }])[0]!['Stato']).toBe('Da lavorare');  });
   it('la colonna Richiamo mostra il giorno locale scelto', () => {
     const recallAt = new Date(2026, 9, 17).getTime();
     expect(toExportRows([{ ...lead, state: { ...lead.state, recallAt } }])[0]!['Richiamo']).toBe('17/10/2026');

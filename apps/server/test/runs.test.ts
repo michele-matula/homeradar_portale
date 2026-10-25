@@ -167,6 +167,16 @@ describe('fine del giro e avanzamento', () => {
     expect(((await (await finish(a, plan.sweepId!, 'stopped')).json()) as { result: SweepResult }).result).toEqual(result);
   });
 
+  it('newCount non conta un immobile già visto su un altro portale', async () => {
+    // Stesso immobile di obs(60) (città, m², locali, prezzo), visto su Idealista prima del giro; obs(50) è troppo diverso.
+    await putListing({ portal: 'idealista', portalId: 9, surfaceM2: 110, rooms: 3, currentPrice: 520_000, firstSeenAt: Date.now() - 30 * HOUR });
+    const plan = await start(a);
+    await batch(a, plan.sweepId!, [50, 60]);
+    await report(a, plan.sweepId!, 'complete');
+    const { result } = (await (await finish(a, plan.sweepId!)).json()) as { result: SweepResult };
+    expect(result.newCount).toBe(1);
+  });
+
   it('GET /api/sweep: in corso, poi ultimo risultato; solo i propri giri', async () => {
     const plan = await start(a);
     await batch(a, plan.sweepId!, [50]);
