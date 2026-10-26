@@ -26,11 +26,17 @@ function romeParts(ms: number): { y: number; m: number; d: number; offset: numbe
   return { y: p.year!, m: p.month!, d: p.day!, offset: wall - Math.floor(ms / 1000) * 1000 };
 }
 
-/** Mezzanotte di Roma del giorno indicato (il mese e il giorno possono traboccare, come in Date.UTC). */
-function romeMidnight(y: number, m: number, d: number): number {
-  const utc = Date.UTC(y, m - 1, d);
-  // A Roma l'ora cambia alle 2 o alle 3: la mezzanotte ha sempre lo scarto del giorno prima di quell'ora.
+/** Ora di Roma del giorno indicato, di default la mezzanotte (il mese e il giorno possono traboccare, come in Date.UTC). */
+function romeMidnight(y: number, m: number, d: number, hour = 0): number {
+  const utc = Date.UTC(y, m - 1, d, hour);
+  // A Roma l'ora cambia alle 2 o alle 3: lo scarto giusto è quello dell'istante cercato, non della mezzanotte UTC.
   return utc - romeParts(utc - romeParts(utc).offset).offset;
+}
+
+/** L'ora `hour`:00 di Roma nello stesso giorno di Roma di `ms`. */
+export function atRomeHour(ms: number, hour: number): number {
+  const { y, m, d } = romeParts(ms);
+  return romeMidnight(y, m, d, hour);
 }
 
 export function startOfLocalDay(ms: number): number {
