@@ -1,4 +1,5 @@
 import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from '@homeradar/shared/api/types';
+import type { AutoSweepHours } from '@homeradar/shared/core/auto-sweep';
 import { PORTALS, type Portal } from '@homeradar/shared/shared/types';
 
 interface DbSettings {
@@ -6,6 +7,8 @@ interface DbSettings {
   min_drop_percent: number;
   categories: string;
   enabled_portals: string;
+  auto_sweep: number;
+  auto_sweep_hours: number | null;
 }
 
 /** Impostazioni dell'agente; i default finché non ne salva. Un portale nuovo nasce acceso. */
@@ -17,6 +20,8 @@ export async function getSettings(db: D1Database, userId: string): Promise<Agent
     minDropPercent: r.min_drop_percent,
     categories: JSON.parse(r.categories),
     enabledPortals: { ...DEFAULT_AGENT_SETTINGS.enabledPortals, ...JSON.parse(r.enabled_portals) },
+    autoSweep: r.auto_sweep === 1,
+    autoSweepHours: r.auto_sweep_hours as AutoSweepHours | null,
   };
 }
 
@@ -28,10 +33,12 @@ export async function saveSettings(db: D1Database, userId: string, patch: Settin
   const s: AgentSettings = { ...cur, ...patch, enabledPortals: { ...cur.enabledPortals, ...patch.enabledPortals } };
   if (!PORTALS.some((p) => s.enabledPortals[p])) return 'Attiva almeno un portale';
   await db
-    .prepare(`INSERT INTO user_settings (user_id, min_age_days, min_drop_percent, categories, enabled_portals, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+    .prepare(`INSERT INTO user_settings (user_id, min_age_days, min_drop_percent, categories, enabled_portals, auto_sweep, auto_sweep_hours, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(user_id) DO UPDATE SET min_age_days = excluded.min_age_days, min_drop_percent = excluded.min_drop_percent,
-      categories = excluded.categories, enabled_portals = excluded.enabled_portals, updated_at = excluded.updated_at`)
-    .bind(userId, s.minAgeDays, s.minDropPercent, JSON.stringify(s.categories), JSON.stringify(s.enabledPortals), now)
+      categories = excluded.categories, enabled_portals = excluded.enabled_portals, auto_sweep = excluded.auto_sweep,
+      auto_sweep_hours = excluded.auto_sweep_hours, updated_at = excluded.updated_at`)
+    .bind(userId, s.minAgeDays, s.minDropPercent, JSON.stringify(s.categories), JSON.stringify(s.enabledPortals), s.autoSweep ? 1 : 0, s.autoSweepHours, now)
     .run();
   return s;
 }

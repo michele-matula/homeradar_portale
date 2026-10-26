@@ -56,7 +56,7 @@ test('collegamento e giro: lotto, esito e fine in ordine, con il token', async (
   await waitFinish(server);
   const sweepId = server.plan.sweepId;
   expect(paths(server)).toEqual(['/connector/link', '/connector/sweeps', '/connector/batches', '/connector/runs', `/connector/sweeps/${sweepId}/finish`]);
-  expect(server.received[0]!.body).toMatchObject({ code: 'cod', version: '0.1.0' });
+  expect(server.received[0]!.body).toMatchObject({ code: 'cod', version: '0.2.0' });
   const batch = server.received[2]!.body;
   expect(batch).toMatchObject({ page: 1, sweepId });
   expect(batch.observations.length).toBeGreaterThan(0);

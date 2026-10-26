@@ -3,12 +3,13 @@ import {
   DEFAULT_SETTINGS, LEAD_STATUSES, PORTALS, PROPERTY_CATEGORIES, type ComuneRef, type LeadView, type Portal, type PropertyCategory, type SweepOutcome,
 } from '../shared/types';
 import type { SearchErrorReason } from '../core/sweep';
+import { AUTO_SWEEP_HOURS, type AutoSweepHours } from '../core/auto-sweep';
 
 export type Role = 'agent' | 'admin';
 export type UserStatus = 'invited' | 'active' | 'suspended';
 
 /** Versione dell'informativa che l'agente accetta all'attivazione; si alza quando il testo cambia. */
-export const PRIVACY_VERSION = 1;
+export const PRIVACY_VERSION = 2;
 
 export const PASSWORD_MIN = 10;
 export const PASSWORD_MAX = 200;
@@ -80,6 +81,10 @@ export interface AgentSettings {
   minDropPercent: number;
   categories: PropertyCategory[];
   enabledPortals: Record<Portal, boolean>;
+  /** Il connettore fa il giro da solo quando l'agente usa il computer. */
+  autoSweep: boolean;
+  /** null = una volta al giorno. */
+  autoSweepHours: AutoSweepHours | null;
 }
 
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
@@ -87,11 +92,14 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   minDropPercent: DEFAULT_SETTINGS.minDropPercent,
   categories: DEFAULT_SETTINGS.searchArea.categories,
   enabledPortals: DEFAULT_SETTINGS.enabledPortals,
+  autoSweep: false,
+  autoSweepHours: null,
 };
 
 const AGE_ERROR = { error: 'Soglia giorni non valida' };
 const DROP_ERROR = { error: 'Ribasso minimo non valido' };
 const PORTALS_ERROR = { error: 'Portali attivi non validi' };
+const AUTO_ERROR = { error: 'Frequenza del giro automatico non valida' };
 export const AgentSettingsBody = body({
   minAgeDays: z.number(AGE_ERROR).int(AGE_ERROR).min(1, AGE_ERROR).max(3650, AGE_ERROR).optional(),
   minDropPercent: z.number(DROP_ERROR).min(0, DROP_ERROR).max(100, DROP_ERROR).optional(),
@@ -100,12 +108,19 @@ export const AgentSettingsBody = body({
     .min(1, { error: 'Scegli almeno una categoria' })
     .optional(),
   enabledPortals: z.partialRecord(z.enum(PORTALS, PORTALS_ERROR), z.boolean(PORTALS_ERROR), PORTALS_ERROR).optional(),
+  autoSweep: z.boolean({ error: 'Giro automatico non valido' }).optional(),
+  autoSweepHours: z.literal(AUTO_SWEEP_HOURS, AUTO_ERROR).nullable().optional(),
 });
 
 export interface LeadsResponse {
   leads: LeadView[];
   /** Lead con un richiamo di oggi o scaduto: lo stesso immobile su più portali conta una volta. */
   dueRecalls: number;
+}
+
+/** Risposta di `POST /api/leads/visit`: da quando un lead è nuovo in questa visita; null prima della seconda visita. */
+export interface LeadsVisit {
+  newSince: number | null;
 }
 
 const ListingKey = z.string({ error: 'Annuncio non valido' }).regex(/^(immobiliare|idealista|subito|casadaprivato):\d+$/, { error: 'Annuncio non valido' });
@@ -157,6 +172,8 @@ export interface ControlSweep {
   searches: number;
   /** Ricerche `blocked` o `error`. */
   problems: number;
+  /** Partito da solo (giro automatico). */
+  auto: boolean;
 }
 
 export interface ControlRow {

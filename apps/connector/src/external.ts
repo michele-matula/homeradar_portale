@@ -15,6 +15,8 @@ export interface ExternalDeps {
   queueState(): Promise<{ pending: number; stuck: boolean }>;
   /** Riprova subito gli invii in attesa, senza aspettare l'attesa crescente. */
   retryNow(): void;
+  /** L'agente ha cambiato il giro automatico: si richiede subito al server se è dovuto. */
+  autoChanged(): void;
 }
 
 /** Messaggi della pagina del portale (`externally_connectable`): solo dalla sua origine. */
@@ -38,6 +40,9 @@ export async function handleExternal(
         return { ok: true, data: null };
       case 'startSweep':
         return { ok: true, data: await d.start() };
+      case 'autoChanged':
+        d.autoChanged();
+        return { ok: true, data: null };
       case 'stopSweep':
         await d.stop();
         return { ok: true, data: null };

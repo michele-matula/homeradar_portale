@@ -14,6 +14,7 @@ function deps(o: Partial<ExternalDeps> = {}): ExternalDeps {
     sweeping: vi.fn(async () => false),
     queueState: vi.fn(async () => ({ pending: 2, stuck: false })),
     retryNow: vi.fn(),
+    autoChanged: vi.fn(),
     ...o,
   };
 }
@@ -66,5 +67,19 @@ describe('messaggi del portale', () => {
     });
     expect(await handleExternal({ type: 'startSweep' }, ORIGIN, d)).toEqual({ ok: false, error: NOT_LINKED, notLinked: true });
     expect(await handleExternal({ type: 'link', code: 'x' }, ORIGIN, d)).toEqual({ ok: false, error: 'Codice di collegamento non valido o scaduto' });
+  });
+});
+
+describe('giro automatico cambiato dal portale', () => {
+  it('autoChanged: il connettore richiede subito', async () => {
+    const d = deps();
+    expect(await handleExternal({ type: 'autoChanged' }, ORIGIN, d)).toEqual({ ok: true, data: null });
+    expect(d.autoChanged).toHaveBeenCalledOnce();
+  });
+
+  it('da un\'altra origine no', async () => {
+    const d = deps();
+    await handleExternal({ type: 'autoChanged' }, 'https://altro.test', d);
+    expect(d.autoChanged).not.toHaveBeenCalled();
   });
 });

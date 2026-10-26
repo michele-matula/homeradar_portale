@@ -8,6 +8,7 @@ describe('rotte del portale', () => {
     renderAt('/informativa');
     expect(await screen.findByRole('heading', { name: 'Informativa (versione di prova)' })).toBeTruthy();
     expect(screen.getByText(/Mai numeri di telefono né nomi dei venditori/)).toBeTruthy();
+    expect(screen.getByText(/oppure parte da solo, se l'hai attivato nelle impostazioni/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'matulamichele@gmail.com' }).getAttribute('href')).toBe('mailto:matulamichele@gmail.com');
     expect(window.location.pathname).toBe('/informativa');
   });

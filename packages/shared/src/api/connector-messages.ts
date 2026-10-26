@@ -10,13 +10,16 @@ export const CONNECTOR_STORE_URL = `https://chromewebstore.google.com/detail/${C
 
 export const NOT_LINKED = 'Connettore non collegato';
 
-export type PortalMessage = { type: 'ping' } | { type: 'link'; code: string } | { type: 'startSweep' } | { type: 'stopSweep' };
+/** `autoChanged`: l'agente ha cambiato il giro automatico, il connettore richiede subito al server se è dovuto. */
+export type PortalMessage =
+  | { type: 'ping' } | { type: 'link'; code: string } | { type: 'startSweep' } | { type: 'stopSweep' } | { type: 'autoChanged' };
 
 export const PortalMessage: z.ZodType<PortalMessage> = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('ping') }),
   z.strictObject({ type: z.literal('link'), code: z.string().min(1).max(200) }),
   z.strictObject({ type: z.literal('startSweep') }),
   z.strictObject({ type: z.literal('stopSweep') }),
+  z.strictObject({ type: z.literal('autoChanged') }),
 ]);
 
 /** Risposta a `ping`: `pending` sono le pagine lette che aspettano d'essere inviate. */
@@ -35,6 +38,8 @@ export interface SweepStarted {
   sweepId: string | null;
   total: number;
   skipped: number;
+  /** Solo per il giro automatico non dovuto: quando richiedere al server. */
+  nextCheckAt?: number;
 }
 
 export type ConnectorReply<T> = { ok: true; data: T } | { ok: false; error: string; notLinked?: true };

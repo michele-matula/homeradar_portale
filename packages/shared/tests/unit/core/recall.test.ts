@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  addDays, formatLocalDate, formatRecallDate, fromDateInput, isDue, nextRecallCheck, RECALL_SHORTCUTS, recallLabel,
+  addDays, atRomeHour, formatLocalDate, formatRecallDate, fromDateInput, isDue, nextRecallCheck, RECALL_SHORTCUTS, recallLabel,
   recallStatus, startOfLocalDay, toDateInput, type RecallStatus,
 } from '@/core/recall';
 
@@ -96,5 +96,14 @@ describe('formati e campo data', () => {
       { label: 'Tra 1 settimana', days: 7 },
       { label: 'Tra 1 mese', days: 30 },
     ]);
+  });
+});
+
+describe('atRomeHour', () => {
+  it("l'ora di Roma dello stesso giorno, anche nei giorni del cambio d'ora", () => {
+    expect(atRomeHour(day(2026, 10, 26, 15), 7)).toBe(day(2026, 10, 26, 7));
+    expect(atRomeHour(day(2026, 10, 25, 23), 7)).toBe(day(2026, 10, 25, 7));
+    expect(atRomeHour(day(2026, 3, 29, 1), 21)).toBe(day(2026, 3, 29, 21));
+    expect(atRomeHour(day(2026, 3, 29, 12), 7)).toBe(day(2026, 3, 29, 7));
   });
 });

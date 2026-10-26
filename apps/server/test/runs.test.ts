@@ -215,3 +215,23 @@ describe('motivo delle ricerche in errore', () => {
     expect(await bad.json()).toEqual({ error: 'Esito non valido' });
   });
 });
+
+describe('giro automatico nello stato del giro', () => {
+  it('in corso e poi ultimo risultato dicono che era automatico', async () => {
+    // L'avvio con `auto` dipende dall'ora (fascia 7–21, provato in plan.test): qui conta solo come si legge il giro.
+    const plan = await start(a);
+    await env.DB.prepare("UPDATE sweeps SET auto = 1 WHERE id = ?").bind(plan.sweepId).run();
+    const st = async () => (await (await fetchApi('GET', '/api/sweep', undefined, { Cookie: a.cookie })).json()) as SweepStatus;
+    expect((await st()).running!.auto).toBe(true);
+    await fetchConnector('POST', `/connector/sweeps/${plan.sweepId}/finish`, { outcome: 'completed' }, a.auth);
+    expect((await st()).last!.auto).toBe(true);
+  });
+
+  it('un giro manuale non è automatico', async () => {
+    const plan = await start(a);
+    const st = async () => (await (await fetchApi('GET', '/api/sweep', undefined, { Cookie: a.cookie })).json()) as SweepStatus;
+    expect((await st()).running!.auto).toBe(false);
+    await fetchConnector('POST', `/connector/sweeps/${plan.sweepId}/finish`, { outcome: 'completed' }, a.auth);
+    expect((await st()).last!.auto).toBe(false);
+  });
+});

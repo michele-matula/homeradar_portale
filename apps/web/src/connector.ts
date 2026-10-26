@@ -11,7 +11,7 @@ interface ChromeRuntime {
 }
 
 /** Il ping deve rispondere subito; l'avvio del giro chiede prima il piano al server. */
-const TIMEOUT_MS: Record<PortalMessage['type'], number> = { ping: 2_000, link: 30_000, startSweep: 30_000, stopSweep: 10_000 };
+const TIMEOUT_MS: Record<PortalMessage['type'], number> = { ping: 2_000, link: 30_000, startSweep: 30_000, stopSweep: 10_000, autoChanged: 2_000 };
 
 /**
  * `chrome.runtime` esiste nella pagina solo se un'estensione installata la ammette (`externally_connectable`):

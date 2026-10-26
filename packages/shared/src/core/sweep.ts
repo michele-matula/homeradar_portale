@@ -194,6 +194,7 @@ export function progressOf(s: SweepState, newCount: number): SweepProgress {
     portals: Object.fromEntries(portalsOf(s).map((p) => [p, totals(s, p)])),
     newCount,
     drops: s.drops.length,
+    auto: false,
   };
 }
 

@@ -27,7 +27,7 @@ export const connectorRoutes: Route[] = [
   deviceRoute('POST', '/connector/sweeps', async (req, env, _p, { user, deviceId, now }) => {
     const body = await readBody(req, StartSweepBody);
     if (body instanceof Response) return body;
-    const plan = await startSweep(env.DB, user, deviceId, now);
+    const plan = await startSweep(env.DB, user, deviceId, now, body.auto === true);
     if (plan instanceof Response) return plan;
     return json(plan, plan.sweepId ? 201 : 200);
   }),

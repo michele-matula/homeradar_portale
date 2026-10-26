@@ -1,6 +1,8 @@
 import '../zod-config';
 import type { SweepPlan } from '@homeradar/shared/api/connector';
 import { NOT_LINKED } from '@homeradar/shared/api/connector-messages';
+import type { Portal } from '@homeradar/shared/shared/types';
+import { createAutoSweep, verifyNotice } from '../auto';
 import { createClient, errorOf, type ServerReply } from '../client';
 import { deviceName } from '../device-name';
 import { createErrorLog, type StoredError } from '../errors';
@@ -119,8 +121,8 @@ export default defineBackground(() => {
       else await browser.storage.local.remove('sweep');
     },
     timing: TIMING,
-    async plan() {
-      const r = await client.post('/connector/sweeps', {});
+    async plan(auto) {
+      const r = await client.post('/connector/sweeps', auto ? { auto: true } : {});
       if (r.status === 401) {
         await unlink();
         throw new Error(NOT_LINKED);
@@ -130,7 +132,49 @@ export default defineBackground(() => {
     },
     enqueue: (o) => queue.enqueue(o),
     reportError,
+    // Giro automatico finito: via la notifica d'avvio; se un portale ha chiesto una verifica, l'agente deve saperlo.
+    onEnd({ auto, blocked }) {
+      if (!auto) return;
+      void browser.notifications.clear('auto');
+      if (!blocked.length) return;
+      void browser.storage.local.set({ verify: blocked });
+      const { message } = verifyNotice(blocked);
+      void browser.notifications.create('verify', { type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: 'HomeRadar', message });
+    },
   });
+
+  // Giro automatico: il server dice se è dovuto; qui si decide quando chiederlo.
+  const auto = createAutoSweep({
+    now: Date.now,
+    linked: async () => (await token()) != null,
+    idleState: () => browser.idle.queryState(300),
+    running: () => runner.running(),
+    loadNext: async () => ((await browser.storage.local.get('nextAutoAt')).nextAutoAt as number | undefined) ?? 0,
+    saveNext: (at) => browser.storage.local.set({ nextAutoAt: at }),
+    start: () => {
+      void queue.flush({ force: true }).catch(() => {});
+      return runner.start({ auto: true });
+    },
+    browserStartedAt,
+    startDelayMs: TIMING.autoStartDelayMs,
+  });
+  /** storage.session si svuota quando il browser riparte: se manca l'istante, il browser è appena partito. */
+  async function browserStartedAt(): Promise<number> {
+    const at = (await browser.storage.session.get('startedAt')).startedAt as number | undefined;
+    if (at != null) return at;
+    const now = Date.now();
+    await browser.storage.session.set({ startedAt: now });
+    return now;
+  }
+  // Si segna subito, al primo risveglio del worker: l'allarme dei 2 minuti deve trovare l'istante già salvato.
+  void browserStartedAt().catch(() => {});
+  async function checkAuto(): Promise<void> {
+    if ((await auto.check()) !== 'started') return;
+    void browser.notifications.create('auto', {
+      type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: 'HomeRadar',
+      message: 'HomeRadar sta cercando i nuovi annunci in una finestra ridotta a icona', buttons: [{ title: 'Ferma' }],
+    });
+  }
 
   async function link(code: string): Promise<void> {
     const name = await currentName();
@@ -150,6 +194,7 @@ export default defineBackground(() => {
     const { token: t, userId } = data as { token: string; userId: string };
     await browser.storage.local.set({ token: t, userId });
     flushErrors();
+    void auto.reset();
   }
 
   browser.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
@@ -171,6 +216,7 @@ export default defineBackground(() => {
       sweeping: () => runner.running(),
       queueState: () => queue.state(),
       retryNow: () => void queue.flush({ force: true }).catch(() => {}),
+      autoChanged: () => void auto.reset().then(checkAuto).catch(() => {}),
     }).then(sendResponse);
     return true;
   });
@@ -199,9 +245,29 @@ export default defineBackground(() => {
   browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'queue') void queue.flush().catch(() => {});
     if (alarm.name === 'hello') void hello(true).catch(() => {});
+    if (alarm.name === 'auto' || alarm.name === 'auto-start') void checkAuto().catch(() => {});
   });
   // Contatto quotidiano, anche senza giri: l'admin vede che il connettore c'è e con che versione.
   void browser.alarms.create('hello', { periodInMinutes: 24 * 60 });
+  // Giro automatico: un controllo ogni tanto (Chrome aperto per giorni, PC risvegliato) e al ritorno dell'agente al computer.
+  // Il worker si riaccende spesso: ricreare l'allarme lo sposterebbe in avanti a ogni risveglio, e non scatterebbe mai.
+  void browser.alarms.get('auto').then((a) => {
+    if (!a) return browser.alarms.create('auto', { periodInMinutes: TIMING.autoEveryMin });
+  }).catch(() => {});
+  browser.idle.onStateChanged.addListener((state) => {
+    if (state === 'active') void checkAuto().catch(() => {});
+  });
+  browser.notifications.onButtonClicked.addListener((id) => {
+    if (id === 'auto') void runner.stop().catch(() => {});
+  });
+  browser.notifications.onClicked.addListener((id) => {
+    if (id !== 'verify') return;
+    void (async () => {
+      const blocked = ((await browser.storage.local.get('verify')).verify as Portal[] | undefined) ?? [];
+      for (const url of verifyNotice(blocked).urls) await browser.tabs.create({ url });
+      await browser.notifications.clear('verify');
+    })().catch(() => {});
+  });
   void hello(false).catch(() => {});
   // Worker riavviato o browser chiuso a giro in corso (lo stato è in storage.local): il giro si chiude come interrotto.
   // storage.session sopravvive al worker ma non al browser: se manca il segno, il browser è ripartito e gli ID delle
@@ -217,5 +283,7 @@ export default defineBackground(() => {
   browser.runtime.onStartup.addListener(() => {
     void queue.flush({ force: true }).catch(() => {});
     void hello(true).catch(() => {});
+    // Il primo controllo del giro automatico aspetta che il browser abbia ripreso le schede: un allarme, il worker si spegne.
+    void browser.alarms.create('auto-start', { when: Date.now() + TIMING.autoStartDelayMs });
   });
 });

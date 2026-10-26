@@ -102,7 +102,7 @@ function Runs({ sweep }: { sweep: ControlSweep }) {
 }
 
 const sweepText = (s: ControlSweep) =>
-  `${dateTime(s.startedAt)} · ${outcomeText(s)} · ${s.searches} ricerche${s.problems ? `, ${s.problems} con problemi` : ''}${s.deviceName ? ` · da ${s.deviceName}` : ''}`;
+  `${dateTime(s.startedAt)} · ${outcomeText(s)}${s.auto ? ' · automatico' : ''} · ${s.searches} ricerche${s.problems ? `, ${s.problems} con problemi` : ''}${s.deviceName ? ` · da ${s.deviceName}` : ''}`;
 
 /** Scheda di un agente: connettori, giri con le loro ricerche, errori. */
 export function ControlAgent({ me, onSignOut, userId }: { me: Me; onSignOut(): void; userId: string }) {

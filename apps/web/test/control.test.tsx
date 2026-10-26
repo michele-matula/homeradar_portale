@@ -1,6 +1,6 @@
 import { fireEvent, screen, within } from '@testing-library/react';
 import type { ControlAgent, ControlRow, ControlRun, ErrorGroup } from '@homeradar/shared/api/types';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ADMIN, AGENT, mockApi, renderAt } from './helpers';
 
 const NOW = Date.now();
@@ -12,7 +12,7 @@ const ROSSI: ControlRow = {
     { id: 'd1', name: 'Chrome · Windows', version: '0.4.0', createdAt: NOW - 30 * DAY, lastSeenAt: NOW - DAY, lastGoodSweepAt: NOW - DAY },
     { id: 'd2', name: 'Chrome · macOS', version: '0.3.0', createdAt: NOW - 20 * DAY, lastSeenAt: NOW - 9 * DAY, lastGoodSweepAt: null },
   ],
-  lastSweep: { id: 's1', startedAt: NOW - DAY, finishedAt: NOW - DAY + 60_000, outcome: 'completed', deviceName: 'Chrome · Windows', searches: 3, problems: 1 },
+  lastSweep: { id: 's1', startedAt: NOW - DAY, finishedAt: NOW - DAY + 60_000, outcome: 'completed', deviceName: 'Chrome · Windows', searches: 3, problems: 1, auto: false },
   sweeps30d: 6, errors7d: 2, health: 'warn', reasons: ['Connettore Chrome · macOS muto da 9 giorni', 'Ultimo giro: 1 ricerca con problemi'],
 };
 const VERDI: ControlRow = {
@@ -30,7 +30,7 @@ const GROUP: ErrorGroup = {
 };
 const AGENT_PAGE: ControlAgent = {
   row: ROSSI,
-  sweeps: [ROSSI.lastSweep!, { id: 's0', startedAt: NOW - 2 * DAY, finishedAt: NOW - 2 * DAY + 60_000, outcome: 'interrupted', deviceName: null, searches: 1, problems: 1 }],
+  sweeps: [ROSSI.lastSweep!, { id: 's0', startedAt: NOW - 2 * DAY, finishedAt: NOW - 2 * DAY + 60_000, outcome: 'interrupted', deviceName: null, searches: 1, problems: 1, auto: true }],
   errors: [GROUP],
 };
 
@@ -56,7 +56,8 @@ describe('pagina «Controllo»', () => {
     mockApi({ 'GET /api/me': { status: 200, body: { user: AGENT } }, 'GET /api/leads': { status: 200, body: { leads: [] } } });
     renderAt('/admin/controllo');
     await screen.findByRole('link', { name: /Lead/ });
-    expect(window.location.pathname).toBe('/');
+    // Il link «Lead» del menu c'è già prima del rinvio: si aspetta l'indirizzo.
+    await vi.waitFor(() => expect(window.location.pathname).toBe('/'));
   });
 });
 
@@ -75,7 +76,7 @@ describe('scheda dell\'agente', () => {
     expect(within(devices).getByText('0.3.0')).toBeTruthy();
     const runs = await screen.findByRole('table', { name: 'Ricerche del giro' });
     expect(within(runs).getByText('pagina non arrivata in tempo')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /interrotto/ }));
+    fireEvent.click(screen.getByRole('button', { name: /interrotto · automatico/ }));
     expect(await screen.findByText('annunci non letti')).toBeTruthy();
     expect(calls.some((c) => c.path === '/api/admin/sweeps/s0/runs')).toBe(true);
     expect(screen.getByText('Ricerca non riuscita: annunci non letti')).toBeTruthy();

@@ -130,7 +130,7 @@ export function buildLeadViews({ listings, states, snapshots, splits }: Archive,
   });
 }
 
-/** Lead nuovo dell'ultimo giro: tutto il gruppo visto da `since`. Un immobile già noto, ripubblicato o comparso su un altro portale, non lo è. */
+/** Lead nuovo: tutto il gruppo visto da `since` (visita precedente della lista o inizio di un giro). Un immobile già noto, ripubblicato o comparso su un altro portale, non lo è. */
 export function isNewLead(v: LeadView, since: number | null): boolean {
   return since != null && Math.min(v.listing.firstSeenAt, ...v.others.map((o) => o.listing.firstSeenAt)) >= since;
 }

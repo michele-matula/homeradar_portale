@@ -55,6 +55,8 @@ export interface SweepResult {
   newCount: number;
   drops: number;
   missing: number;
+  /** Partito da solo (giro automatico); assente nei risultati salvati prima che esistesse. */
+  auto?: boolean;
 }
 
 /** Avanzamento del giro in corso, per il pannello. */
@@ -66,6 +68,8 @@ export interface SweepProgress {
   portals: Partial<Record<Portal, { pages: number; privates: number }>>;
   newCount: number;
   drops: number;
+  /** Partito da solo (giro automatico). */
+  auto: boolean;
 }
 
 export interface SweepStatus {

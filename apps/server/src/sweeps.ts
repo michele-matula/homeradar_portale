@@ -1,6 +1,8 @@
 import type { RunReport, SweepPlan } from '@homeradar/shared/api/connector';
+import { AUTO_SWEEP_HOURS, autoSweepDecision, nextAfterSweep, type AutoSweepRow } from '@homeradar/shared/core/auto-sweep';
 import { isNewLead } from '@homeradar/shared/core/lead-groups';
 import { MISSING_SWEEPS } from '@homeradar/shared/core/missing';
+import { startOfLocalDay } from '@homeradar/shared/core/recall';
 import { searchesFor } from '@homeradar/shared/core/searches';
 import {
   PORTAL_TAGS, PORTALS,
@@ -26,6 +28,7 @@ interface SweepRow {
   drops: number;
   missing: number;
   result: string | null;
+  auto: number;
 }
 
 interface RunRow {
@@ -95,6 +98,7 @@ export async function finishSweep(db: D1Database, sweepId: string, outcome: Swee
     newCount: await newLeadsSince(db, s.user_id, s.started_at, now),
     drops: s.drops,
     missing: s.missing,
+    auto: s.auto === 1,
   };
   await db.prepare('UPDATE sweeps SET finished_at = ?, outcome = ?, result = ? WHERE id = ?').bind(result.finishedAt, result.outcome, JSON.stringify(result), sweepId).run();
   return result;
@@ -118,20 +122,45 @@ export async function closeDeviceSweeps(db: D1Database, userId: string, deviceId
   for (const s of results) await finishSweep(db, s.id, 'interrupted', now);
 }
 
+/** Giri dell'agente che servono a decidere il giro automatico: da inizio giornata o dalle ultime 8 ore. */
+async function recentSweeps(db: D1Database, userId: string, now: number): Promise<AutoSweepRow[]> {
+  const since = Math.min(startOfLocalDay(now), now - Math.max(...AUTO_SWEEP_HOURS) * 3_600_000);
+  const { results } = await db
+    .prepare('SELECT started_at, outcome, finished_at, auto FROM sweeps WHERE user_id = ? AND started_at >= ?')
+    .bind(userId, since)
+    .all<{ started_at: number; outcome: SweepOutcome | null; finished_at: number | null; auto: number }>();
+  return results.map((r) => ({ startedAt: r.started_at, outcome: r.finished_at == null ? null : r.outcome, auto: r.auto === 1 }));
+}
+
+/** Portali che hanno chiesto una verifica all'agente nelle ultime 24 ore: il giro automatico li lascia stare. */
+async function blockedPortals(db: D1Database, userId: string, now: number): Promise<Set<Portal>> {
+  const { results } = await db
+    .prepare("SELECT DISTINCT portal FROM search_runs WHERE user_id = ? AND status = 'blocked' AND finished_at > ?")
+    .bind(userId, now - 24 * 3_600_000)
+    .all<{ portal: Portal }>();
+  return new Set(results.map((r) => r.portal));
+}
+
 /**
  * Piano del giro: le ricerche della zona e dei portali dell'agente, tranne quelle fresche (complete di chiunque negli
  * ultimi minuti di freschezza) e quelle in corso per un altro agente. Il piano non dice chi le ha fatte.
+ * Con `auto` il giro si apre solo se è dovuto (`core/auto-sweep`), senza i portali che hanno chiesto una verifica.
  */
-export async function startSweep(db: D1Database, user: UserRow, deviceId: string, now: number): Promise<SweepPlan | Response> {
+export async function startSweep(db: D1Database, user: UserRow, deviceId: string, now: number, auto = false): Promise<SweepPlan | Response> {
   await closeStaleSweeps(db, user.id, now);
+  const settings = await getSettings(db, user.id);
+  if (auto) {
+    const decision = autoSweepDecision({ enabled: settings.autoSweep, hours: settings.autoSweepHours }, await recentSweeps(db, user.id, now), now);
+    if (!decision.due) return { sweepId: null, searches: [], skipped: 0, notDue: true, nextCheckAt: decision.nextCheckAt };
+  }
   const open = await db.prepare('SELECT id, device_id FROM sweeps WHERE user_id = ? AND finished_at IS NULL').bind(user.id).all<{ id: string; device_id: string | null }>();
   if (open.results.some((s) => s.device_id !== deviceId)) return fail(409, 'Giro già in corso su un altro computer');
   for (const s of open.results) await finishSweep(db, s.id, 'interrupted', now);
 
   const comuni = toComuneRefs(user.comuni);
   if (!comuni.length) return fail(400, "Nessun comune assegnato: chiedi all'amministratore");
-  const settings = await getSettings(db, user.id);
-  const specs = searchesFor({ comuni, categories: settings.categories }, settings.enabledPortals);
+  const blocked = auto ? await blockedPortals(db, user.id, now) : new Set<Portal>();
+  const specs = searchesFor({ comuni, categories: settings.categories }, settings.enabledPortals).filter((s) => !blocked.has(s.portal));
   const { results: busy } = await db
     .prepare(`SELECT DISTINCT search_key FROM search_runs WHERE search_key IN (SELECT value FROM json_each(?1))
       AND ((status = 'complete' AND finished_at > ?2) OR (status = 'running' AND started_at > ?3 AND user_id IS NOT ?4))`)
@@ -139,12 +168,17 @@ export async function startSweep(db: D1Database, user: UserRow, deviceId: string
     .all<{ search_key: string }>();
   const skip = new Set(busy.map((r) => r.search_key));
   const searches = specs.filter((s) => !skip.has(s.key));
-  if (!searches.length) return { sweepId: null, searches: [], skipped: specs.length };
+  if (!searches.length) {
+    // Dati già freschi (un collega della zona): per il giro automatico vale come un giro fatto adesso.
+    if (auto) return { sweepId: null, searches: [], skipped: specs.length, notDue: true, nextCheckAt: nextAfterSweep(settings.autoSweepHours, now) };
+    return { sweepId: null, searches: [], skipped: specs.length };
+  }
 
   const sweepId = crypto.randomUUID();
   try {
     await db.batch([
-      db.prepare('INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at) VALUES (?, ?, ?, ?, ?)').bind(sweepId, user.id, deviceId, now, now),
+      db.prepare('INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at, auto) VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(sweepId, user.id, deviceId, now, now, auto ? 1 : 0),
       ...searches.map((s) =>
         db.prepare("INSERT INTO search_runs (sweep_id, search_key, portal, spec, user_id, status) VALUES (?, ?, ?, ?, ?, 'pending')").bind(sweepId, s.key, s.portal, JSON.stringify(s), user.id),
       ),
@@ -226,5 +260,6 @@ async function progress(db: D1Database, user: UserRow, s: SweepRow): Promise<Swe
     portals: Object.fromEntries(Object.entries(portalTotals(runs)).map(([p, t]) => [p, { pages: t.pages, privates: t.privates }])),
     newCount,
     drops: s.drops,
+    auto: s.auto === 1,
   };
 }

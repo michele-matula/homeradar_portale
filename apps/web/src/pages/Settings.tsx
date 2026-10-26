@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { AgentSettings, Me } from '@homeradar/shared/api/types';
+import { AUTO_SWEEP_HOURS, type AutoSweepHours } from '@homeradar/shared/core/auto-sweep';
 import { UNCERTAINTY_DAYS } from '@homeradar/shared/core/rules';
 import { CATEGORY_LABELS, PORTAL_SITES, PORTALS, PROPERTY_CATEGORIES, type Portal, type PropertyCategory } from '@homeradar/shared/shared/types';
 import { api, errorText } from '../api';
+import { chromeConnector, type ConnectorPort } from '../connector';
 import { Devices } from '../components/Devices';
 import { InfoTip } from '../components/InfoTip';
 import { Layout } from '../components/Layout';
@@ -28,11 +30,16 @@ function changes(saved: AgentSettings, draft: AgentSettings): Partial<AgentSetti
   if (cats.join() !== PROPERTY_CATEGORIES.filter((c) => saved.categories.includes(c)).join()) out.categories = cats;
   const portals = PORTALS.filter((p) => draft.enabledPortals[p] !== saved.enabledPortals[p]);
   if (portals.length) out.enabledPortals = Object.fromEntries(portals.map((p) => [p, draft.enabledPortals[p]])) as Record<Portal, boolean>;
+  if (draft.autoSweep !== saved.autoSweep) out.autoSweep = draft.autoSweep;
+  if (draft.autoSweepHours !== saved.autoSweepHours) out.autoSweepHours = draft.autoSweepHours;
   return out;
 }
 
-/** Impostazioni dell'agente: quando un annuncio è un lead, cosa cerca il giro, zona e computer collegati. */
-export function Settings({ me, onSignOut }: { me: Me; onSignOut(): void }) {
+/** Frequenze del giro automatico, dalla più rada; '' = una volta al giorno. */
+const AUTO_CHOICES: [string, string][] = [['', 'Una volta al giorno'], ...[...AUTO_SWEEP_HOURS].reverse().map((h): [string, string] => [String(h), `Ogni ${h} ore`])];
+
+/** Impostazioni dell'agente: quando un annuncio è un lead, cosa cerca il giro, giro automatico, zona e computer collegati. */
+export function Settings({ me, onSignOut, connector = chromeConnector }: { me: Me; onSignOut(): void; connector?: ConnectorPort }) {
   const [saved, setSaved] = useState<AgentSettings | null>(null);
   const [draft, setDraft] = useState<AgentSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +75,8 @@ export function Settings({ me, onSignOut }: { me: Me; onSignOut(): void }) {
     setError(null);
     try {
       const s = await api<AgentSettings>('PUT', '/api/settings', diff);
+      // Il connettore di questo computer richiede subito se il giro è dovuto, senza aspettare il suo prossimo controllo.
+      if ('autoSweep' in diff || 'autoSweepHours' in diff) void connector.send({ type: 'autoChanged' });
       setSaved(s);
       setDraft(s);
       setNotice('Impostazioni salvate');
@@ -131,6 +140,31 @@ export function Settings({ me, onSignOut }: { me: Me; onSignOut(): void }) {
               ))}
             </fieldset>
             <p className="hint">Ogni categoria scelta aggiunge una ricerca per comune al giro: più categorie, giro più lungo.</p>
+          </section>
+          <section className="card">
+            <h2>Giro automatico</h2>
+            <label className="check">
+              <input type="checkbox" checked={draft.autoSweep} onChange={() => edit({ autoSweep: !draft.autoSweep })} />
+              Fai il giro da solo quando uso il computer
+            </label>
+            <label className="settings__field">
+              <span>Frequenza</span>
+              <select
+                value={draft.autoSweepHours == null ? '' : String(draft.autoSweepHours)}
+                disabled={!draft.autoSweep}
+                onChange={(e) => edit({ autoSweepHours: e.target.value ? (Number(e.target.value) as AutoSweepHours) : null })}
+              >
+                {AUTO_CHOICES.map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="hint">
+              Chrome deve essere aperto. Il giro parte fra le 7 e le 21, in una finestra ridotta a icona, e si ferma dalla notifica o dal
+              riquadro «Ricerche» della lista dei lead.
+            </p>
           </section>
           <div className="settings__actions">
             <button type="submit" className="btn btn--primary" disabled={!dirty || busy}>

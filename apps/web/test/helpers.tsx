@@ -46,4 +46,5 @@ export const AGENT_ROUTES: Routes = {
   'GET /api/sweep': { status: 200, body: { running: null, last: null } },
   'GET /api/devices': { status: 200, body: [] },
   'GET /api/settings': { status: 200, body: DEFAULT_AGENT_SETTINGS },
+  'POST /api/leads/visit': { status: 200, body: { newSince: null } },
 };

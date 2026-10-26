@@ -90,3 +90,25 @@ describe('GET /api/leads', () => {
     expect(await leads(admin.cookie)).toEqual({ leads: [], dueRecalls: 0 });
   });
 });
+
+describe('POST /api/leads/visit', () => {
+  const visit = async (cookie: string) => (await (await fetchApi('POST', '/api/leads/visit', {}, { Cookie: cookie })).json()) as { newSince: number | null };
+  const seenAt = (id: string, t: number) => env.DB.prepare('UPDATE users SET leads_seen_at = ? WHERE id = ?').bind(t, id).run();
+  const MIN = 60_000;
+
+  it('senza sessione', async () => expect((await fetchApi('POST', '/api/leads/visit', {})).status).toBe(401));
+
+  it('prima visita: nessuna soglia; poi la soglia è l\'apertura della visita precedente e non si sposta durante la visita', async () => {
+    const a = await agent();
+    expect(await visit(a.cookie)).toEqual({ newSince: null });
+    // Dieci minuti dopo: stessa visita, ancora nessuna soglia.
+    const first = Date.now() - 10 * MIN;
+    await seenAt(a.id, first);
+    expect(await visit(a.cookie)).toEqual({ newSince: null });
+    // Dopo 45 minuti senza aprire la lista: visita nuova, soglia = ultima apertura.
+    const last = Date.now() - 45 * MIN;
+    await seenAt(a.id, last);
+    expect(await visit(a.cookie)).toEqual({ newSince: last });
+    expect(await visit(a.cookie)).toEqual({ newSince: last });
+  });
+});

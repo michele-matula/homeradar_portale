@@ -46,15 +46,17 @@ interface SweepRow {
   device_name: string | null;
   searches: number;
   problems: number;
+  auto: number;
 }
 
-const SWEEP_COLUMNS = `s.id, s.user_id, s.started_at, s.finished_at, s.outcome, d.name AS device_name,
+const SWEEP_COLUMNS = `s.id, s.user_id, s.started_at, s.finished_at, s.outcome, s.auto, d.name AS device_name,
   (SELECT COUNT(*) FROM search_runs r WHERE r.sweep_id = s.id) AS searches,
   (SELECT COUNT(*) FROM search_runs r WHERE r.sweep_id = s.id AND r.status IN ('blocked', 'error')) AS problems
   FROM sweeps s LEFT JOIN devices d ON d.id = s.device_id`;
 
 const toSweep = (s: SweepRow): ControlSweep => ({
   id: s.id, startedAt: s.started_at, finishedAt: s.finished_at, outcome: s.outcome, deviceName: s.device_name, searches: s.searches, problems: s.problems,
+  auto: s.auto === 1,
 });
 
 /** Righe di «Controllo» (o di un solo agente): un numero fisso di query, qualunque sia il numero di agenti. */

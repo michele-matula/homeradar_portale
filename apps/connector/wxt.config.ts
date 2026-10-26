@@ -24,9 +24,9 @@ export default defineConfig({
     const origin = portalOrigin(mode);
     return {
       name: 'HomeRadar connettore',
-      description: 'Cerca gli annunci di privati della tua zona quando lo chiedi dal portale HomeRadar',
+      description: "Cerca gli annunci di privati della tua zona, quando lo chiedi dal portale HomeRadar o da solo se l'hai attivato",
       ...(STORE ? {} : { key: MANIFEST_KEY }),
-      permissions: ['storage', 'alarms', 'notifications'],
+      permissions: ['storage', 'alarms', 'notifications', 'idle'],
       host_permissions: [...PORTAL_HOSTS, `${origin}/*`],
       externally_connectable: { matches: [`${origin}/*`] },
       action: { default_title: 'HomeRadar' },
