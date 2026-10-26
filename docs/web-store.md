@@ -32,7 +32,7 @@ Testi da incollare nella dashboard sviluppatore (https://chrome.google.com/webst
 **Motivo dei permessi:**
 
 - `storage`: conserva il collegamento all'account del portale, la coda delle pagine lette in attesa d'invio e gli errori da segnalare.
-- `alarms`: riprova gli invii non riusciti, manda al portale un contatto al giorno (versione e ultimo uso) per sapere che il connettore funziona e, se l'agente l'ha attivato, controlla ogni 15 minuti se è ora del giro automatico.
+- `alarms`: riprova gli invii non riusciti, manda al portale un contatto al giorno (versione e ultimo uso) per sapere che il connettore funziona e ogni 15 minuti, se l'agente sta usando il computer, chiede al portale se è ora del giro automatico. Con il giro automatico spento la domanda parte al più una volta l'ora (per accorgersi se l'agente lo attiva da un altro dispositivo) e il portale risponde sempre di no.
 - `notifications`: tre avvisi: i dati di un giro non riescono a partire da molto tempo (problema di connessione); un giro automatico è partito (con il pulsante «Ferma»); un portale ha chiesto una verifica durante il giro automatico.
 - `idle`: sapere se l'agente sta usando il computer, perché il giro automatico parta solo allora (mai a computer bloccato o inattivo).
 - Host `www.immobiliare.it`, `www.idealista.it`, `www.subito.it`, `www.casadaprivato.it`: leggere i risultati delle ricerche, solo nella scheda del giro (lanciato dall'agente o automatico se l'ha attivato). Su Immobiliare.it e Subito uno script nella pagina (in ogni scheda) inoltra i dati che il sito ha già caricato; si usano solo nella scheda del giro.
