@@ -147,10 +147,10 @@ describe('giro automatico', () => {
   const autoOn = (who: Agent, hours: number | null = null) =>
     fetchApi('PUT', '/api/settings', { autoSweep: true, autoSweepHours: hours }, { Cookie: who.cookie });
   const autoStart = async (who: Agent, now = NOW) => startSweep(env.DB, (await findUserById(env.DB, who.id))!, who.deviceId, now, true);
-  async function oldSweep(who: Agent, startedAt: number, outcome: string | null, trigger = 'manual', runs: [string, string][] = []) {
+  async function oldSweep(who: Agent, startedAt: number, outcome: string | null, auto = false, runs: [string, string][] = []) {
     const id = crypto.randomUUID();
-    await env.DB.prepare('INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at, finished_at, outcome, trigger) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)')
-      .bind(id, who.id, startedAt, outcome ? startedAt + MIN : NOW, outcome ? startedAt + MIN : null, outcome, trigger).run();
+    await env.DB.prepare('INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at, finished_at, outcome, auto) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)')
+      .bind(id, who.id, startedAt, outcome ? startedAt + MIN : NOW, outcome ? startedAt + MIN : null, outcome, auto ? 1 : 0).run();
     for (const [portal, status] of runs) {
       await env.DB.prepare("INSERT INTO search_runs (sweep_id, search_key, portal, spec, user_id, status, finished_at) VALUES (?, ?, ?, '{}', ?, ?, ?)")
         .bind(id, `${portal}|x`, portal, who.id, status, startedAt + MIN).run();
@@ -171,7 +171,7 @@ describe('giro automatico', () => {
     const plan = (await autoStart(a)) as SweepPlan;
     expect(plan.sweepId).not.toBeNull();
     expect(plan.searches).toEqual(SPECS);
-    expect(await env.DB.prepare('SELECT trigger FROM sweeps WHERE id = ?').bind(plan.sweepId).first('trigger')).toBe('auto');
+    expect(await env.DB.prepare('SELECT auto FROM sweeps WHERE id = ?').bind(plan.sweepId).first('auto')).toBe(1);
   });
 
   it('una volta al giorno: un giro completato stamattina basta, anche manuale', async () => {
@@ -189,7 +189,7 @@ describe('giro automatico', () => {
 
   it('un portale che ha chiesto una verifica nelle 24 ore resta fuori dal giro automatico, non da quello manuale', async () => {
     await autoOn(a);
-    await oldSweep(a, NOW - 26 * 3_600_000, 'partial', 'auto', [['idealista', 'blocked']]);
+    await oldSweep(a, NOW - 26 * 3_600_000, 'partial', true, [['idealista', 'blocked']]);
     await env.DB.prepare("UPDATE search_runs SET finished_at = ? WHERE user_id = ? AND status = 'blocked'").bind(NOW - 2 * 3_600_000, a.id).run();
     const auto = (await autoStart(a)) as SweepPlan;
     expect(auto.searches.some((s) => s.portal === 'idealista')).toBe(false);
@@ -217,5 +217,13 @@ describe('giro automatico', () => {
     const other = await linkDevice(a.id);
     await startSweep(env.DB, (await findUserById(env.DB, a.id))!, other.id, NOW - 10 * MIN, false);
     expect(await autoStart(a)).toMatchObject({ sweepId: null, notDue: true, nextCheckAt: NOW + 15 * MIN });
+  });
+});
+
+describe('schema del giro automatico', () => {
+  it('i portali bloccati si cercano con un indice su search_runs', async () => {
+    const plan = await env.DB.prepare("EXPLAIN QUERY PLAN SELECT DISTINCT portal FROM search_runs WHERE user_id = ? AND status = 'blocked' AND finished_at > ?")
+      .bind('u', 0).all<{ detail: string }>();
+    expect(plan.results.map((r) => r.detail).join(' ')).toMatch(/USING (COVERING )?INDEX search_runs_user_blocked/);
   });
 });

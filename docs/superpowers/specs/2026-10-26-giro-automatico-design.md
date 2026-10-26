@@ -118,7 +118,7 @@ Deciso dall'utente: un lead è nuovo se il suo gruppo è comparso dopo l'ultima 
 
 ### Il giro nel portale
 
-- `sweeps` ha una colonna nuova, `trigger` (`'manual'` | `'auto'`, default `'manual'`), scritta da `startSweep`.
+- `sweeps` ha una colonna nuova, `auto` (0 o 1, default 0; `trigger` sarebbe una parola chiave di SQLite), scritta da `startSweep`.
 - `SweepProgress` e `SweepResult` hanno `auto: boolean`. Nel riquadro del giro (`components/Sweep.tsx`) un giro automatico in corso si legge «Giro automatico in corso» e si ferma con «Ferma» come gli altri. La riga dell'ultimo giro aggiunge «· automatico».
 - Nella pagina «Controllo» dell'admin, i giri della scheda dell'agente mostrano se erano automatici. Le regole verde/arancio/rosso di `controlHealth` non cambiano.
 

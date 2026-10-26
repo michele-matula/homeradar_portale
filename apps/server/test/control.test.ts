@@ -222,7 +222,7 @@ describe('giri automatici nel controllo', () => {
     const d = await linkDevice(u.id);
     const manual = await sweep(u.id, d.id, { startedAt: Date.now() - 2 * 3_600_000 });
     const auto = await sweep(u.id, d.id, { startedAt: Date.now() - 3_600_000 });
-    await env.DB.prepare("UPDATE sweeps SET trigger = 'auto' WHERE id = ?").bind(auto).run();
+    await env.DB.prepare("UPDATE sweeps SET auto = 1 WHERE id = ?").bind(auto).run();
     const a = await get<ControlAgent>(admin.cookie, `/api/admin/control/${u.id}`);
     expect(a.sweeps.map((s) => [s.id, s.auto])).toEqual([[auto, true], [manual, false]]);
     expect(a.row.lastSweep!.auto).toBe(true);

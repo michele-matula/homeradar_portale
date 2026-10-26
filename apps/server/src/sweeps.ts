@@ -28,7 +28,7 @@ interface SweepRow {
   drops: number;
   missing: number;
   result: string | null;
-  trigger: 'manual' | 'auto';
+  auto: number;
 }
 
 interface RunRow {
@@ -98,7 +98,7 @@ export async function finishSweep(db: D1Database, sweepId: string, outcome: Swee
     newCount: await newLeadsSince(db, s.user_id, s.started_at, now),
     drops: s.drops,
     missing: s.missing,
-    auto: s.trigger === 'auto',
+    auto: s.auto === 1,
   };
   await db.prepare('UPDATE sweeps SET finished_at = ?, outcome = ?, result = ? WHERE id = ?').bind(result.finishedAt, result.outcome, JSON.stringify(result), sweepId).run();
   return result;
@@ -126,10 +126,10 @@ export async function closeDeviceSweeps(db: D1Database, userId: string, deviceId
 async function recentSweeps(db: D1Database, userId: string, now: number): Promise<AutoSweepRow[]> {
   const since = Math.min(startOfLocalDay(now), now - Math.max(...AUTO_SWEEP_HOURS) * 3_600_000);
   const { results } = await db
-    .prepare('SELECT started_at, outcome, finished_at, trigger FROM sweeps WHERE user_id = ? AND started_at >= ?')
+    .prepare('SELECT started_at, outcome, finished_at, auto FROM sweeps WHERE user_id = ? AND started_at >= ?')
     .bind(userId, since)
-    .all<{ started_at: number; outcome: SweepOutcome | null; finished_at: number | null; trigger: string }>();
-  return results.map((r) => ({ startedAt: r.started_at, outcome: r.finished_at == null ? null : r.outcome, auto: r.trigger === 'auto' }));
+    .all<{ started_at: number; outcome: SweepOutcome | null; finished_at: number | null; auto: number }>();
+  return results.map((r) => ({ startedAt: r.started_at, outcome: r.finished_at == null ? null : r.outcome, auto: r.auto === 1 }));
 }
 
 /** Portali che hanno chiesto una verifica all'agente nelle ultime 24 ore: il giro automatico li lascia stare. */
@@ -177,8 +177,8 @@ export async function startSweep(db: D1Database, user: UserRow, deviceId: string
   const sweepId = crypto.randomUUID();
   try {
     await db.batch([
-      db.prepare('INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at, trigger) VALUES (?, ?, ?, ?, ?, ?)')
-        .bind(sweepId, user.id, deviceId, now, now, auto ? 'auto' : 'manual'),
+      db.prepare('INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at, auto) VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(sweepId, user.id, deviceId, now, now, auto ? 1 : 0),
       ...searches.map((s) =>
         db.prepare("INSERT INTO search_runs (sweep_id, search_key, portal, spec, user_id, status) VALUES (?, ?, ?, ?, ?, 'pending')").bind(sweepId, s.key, s.portal, JSON.stringify(s), user.id),
       ),
@@ -260,6 +260,6 @@ async function progress(db: D1Database, user: UserRow, s: SweepRow): Promise<Swe
     portals: Object.fromEntries(Object.entries(portalTotals(runs)).map(([p, t]) => [p, { pages: t.pages, privates: t.privates }])),
     newCount,
     drops: s.drops,
-    auto: s.trigger === 'auto',
+    auto: s.auto === 1,
   };
 }
