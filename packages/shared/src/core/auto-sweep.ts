@@ -12,6 +12,8 @@ export const AUTO_TO_HOUR = 21;
 export const AUTO_RETRY_MS = 3_600_000;
 /** Giro automatico spento: il connettore richiede dopo così (un'attivazione fatta da un altro dispositivo). */
 export const AUTO_OFF_RECHECK_MS = 3_600_000;
+/** C'è un giro aperto: il connettore richiede dopo così, invece di aspettare la soglia. */
+export const AUTO_OPEN_RECHECK_MS = 15 * 60_000;
 
 const HOUR_MS = 3_600_000;
 
@@ -49,5 +51,8 @@ export function autoSweepDecision(s: { enabled: boolean; hours: AutoSweepHours |
   if (counted.length) next = Math.max(next, nextAfterSweep(s.hours, Math.max(...counted)));
   const autos = sweeps.filter((x) => x.auto).map((x) => x.startedAt);
   if (autos.length) next = Math.max(next, intoWindow(Math.max(...autos) + AUTO_RETRY_MS));
-  return next <= now ? { due: true } : { due: false, nextCheckAt: next };
+  if (next <= now) return { due: true };
+  // Un giro aperto (altro computer, o rimasto orfano) potrebbe finire interrotto e allora non contare: si ricontrolla presto.
+  if (sweeps.some((x) => x.outcome == null)) next = Math.min(next, intoWindow(now + AUTO_OPEN_RECHECK_MS));
+  return { due: false, nextCheckAt: next };
 }

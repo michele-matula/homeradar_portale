@@ -38,7 +38,7 @@ describe('autoSweepDecision', () => {
   it("ogni 4 ore: dovuto 4 ore dopo l'ultimo giro che conta; aperto conta", () => {
     expect(autoSweepDecision(EVERY4, [row(T(8), 'stopped')], T(11))).toEqual({ due: false, nextCheckAt: T(12) });
     expect(autoSweepDecision(EVERY4, [row(T(8), 'completed')], T(12))).toEqual({ due: true });
-    expect(autoSweepDecision(EVERY4, [row(T(10), null)], T(11))).toEqual({ due: false, nextCheckAt: T(14) });
+    expect(autoSweepDecision(EVERY4, [row(T(10), null)], T(11))).toEqual({ due: false, nextCheckAt: T(11, 15) });
   });
 
   it('soglia oltre le 21: domani alle 7', () =>
@@ -53,5 +53,12 @@ describe('nextAfterSweep', () => {
     expect(nextAfterSweep(null, T(9))).toBe(T(7, 0, 27));
     expect(nextAfterSweep(6, T(9))).toBe(T(15));
     expect(nextAfterSweep(6, T(16))).toBe(T(7, 0, 27));
+  });
+});
+
+describe('giro aperto', () => {
+  it('conta, ma si ricontrolla fra 15 minuti: potrebbe finire interrotto', () => {
+    expect(autoSweepDecision(ON, [row(T(9), null, false)], T(9, 30))).toEqual({ due: false, nextCheckAt: T(9, 45) });
+    expect(autoSweepDecision(EVERY4, [row(T(8), 'completed'), row(T(9), null, false)], T(9, 30))).toEqual({ due: false, nextCheckAt: T(9, 45) });
   });
 });

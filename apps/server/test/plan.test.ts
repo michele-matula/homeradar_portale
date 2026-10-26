@@ -212,10 +212,10 @@ describe('giro automatico', () => {
     expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sweeps WHERE user_id = ?').bind(a.id).first('n')).toBe(0);
   });
 
-  it('giro aperto su un altro computer: conta come giro in corso, non dovuto e senza errore', async () => {
+  it('giro aperto su un altro computer: non dovuto, senza errore, si ricontrolla fra 15 minuti', async () => {
     await autoOn(a, 4);
     const other = await linkDevice(a.id);
     await startSweep(env.DB, (await findUserById(env.DB, a.id))!, other.id, NOW - 10 * MIN, false);
-    expect(await autoStart(a)).toMatchObject({ sweepId: null, notDue: true, nextCheckAt: NOW - 10 * MIN + 4 * 3_600_000 });
+    expect(await autoStart(a)).toMatchObject({ sweepId: null, notDue: true, nextCheckAt: NOW + 15 * MIN });
   });
 });
