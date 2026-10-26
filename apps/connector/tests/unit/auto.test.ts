@@ -1,6 +1,6 @@
 import type { SweepStarted } from '@homeradar/shared/api/connector-messages';
 import { describe, expect, it, vi } from 'vitest';
-import { createAutoSweep, type AutoDeps } from '../../src/auto';
+import { createAutoSweep, verifyNotice, type AutoDeps } from '../../src/auto';
 
 const NOW = 1_000_000;
 const MIN = 60_000;
@@ -79,5 +79,23 @@ describe('avvio del browser', () => {
     const d = deps({ browserStartedAt: async () => NOW - MIN });
     expect(await createAutoSweep(d).check()).toBe('skipped');
     expect(d.start).not.toHaveBeenCalled();
+  });
+});
+
+describe('avviso di verifica', () => {
+  it('un portale: singolare, una scheda', () => {
+    expect(verifyNotice(['idealista'])).toEqual({
+      message: 'Idealista.it ha chiesto una verifica: aprilo tu', urls: ['https://www.idealista.it/'],
+    });
+  });
+
+  it('tre portali: virgola e «e»', () => {
+    expect(verifyNotice(['immobiliare', 'idealista', 'subito']).message).toBe('Immobiliare.it, Idealista.it e Subito.it hanno chiesto una verifica: aprili tu');
+  });
+
+  it('più portali: plurale, una scheda per ognuno', () => {
+    expect(verifyNotice(['immobiliare', 'subito'])).toEqual({
+      message: 'Immobiliare.it e Subito.it hanno chiesto una verifica: aprili tu', urls: ['https://www.immobiliare.it/', 'https://www.subito.it/'],
+    });
   });
 });

@@ -1,8 +1,8 @@
 import '../zod-config';
 import type { SweepPlan } from '@homeradar/shared/api/connector';
 import { NOT_LINKED } from '@homeradar/shared/api/connector-messages';
-import { PORTAL_SITES, type Portal } from '@homeradar/shared/shared/types';
-import { createAutoSweep } from '../auto';
+import type { Portal } from '@homeradar/shared/shared/types';
+import { createAutoSweep, verifyNotice } from '../auto';
 import { createClient, errorOf, type ServerReply } from '../client';
 import { deviceName } from '../device-name';
 import { createErrorLog, type StoredError } from '../errors';
@@ -138,8 +138,7 @@ export default defineBackground(() => {
       void browser.notifications.clear('auto');
       if (!blocked.length) return;
       void browser.storage.local.set({ verify: blocked });
-      const sites = blocked.map((p) => PORTAL_SITES[p]);
-      const message = `${sites.join(' e ')} ${sites.length > 1 ? 'hanno' : 'ha'} chiesto una verifica: aprilo tu`;
+      const { message } = verifyNotice(blocked);
       void browser.notifications.create('verify', { type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: 'HomeRadar', message });
     },
   });
@@ -264,8 +263,8 @@ export default defineBackground(() => {
   browser.notifications.onClicked.addListener((id) => {
     if (id !== 'verify') return;
     void (async () => {
-      const [first] = ((await browser.storage.local.get('verify')).verify as Portal[] | undefined) ?? [];
-      if (first) await browser.tabs.create({ url: `https://www.${PORTAL_SITES[first].toLowerCase()}/` });
+      const blocked = ((await browser.storage.local.get('verify')).verify as Portal[] | undefined) ?? [];
+      for (const url of verifyNotice(blocked).urls) await browser.tabs.create({ url });
       await browser.notifications.clear('verify');
     })().catch(() => {});
   });

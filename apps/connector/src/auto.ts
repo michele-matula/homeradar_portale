@@ -1,5 +1,6 @@
 import type { SweepStarted } from '@homeradar/shared/api/connector-messages';
 import { AUTO_OFF_RECHECK_MS } from '@homeradar/shared/core/auto-sweep';
+import { PORTAL_SITES, type Portal } from '@homeradar/shared/shared/types';
 
 /** Dopo un errore (giro aperto su un altro computer, rete) si richiede dopo così. */
 const ERROR_RETRY_MS = 15 * 60_000;
@@ -51,5 +52,16 @@ export function createAutoSweep(d: AutoDeps) {
     },
     /** Impostazioni cambiate o connettore ricollegato: si richiede al prossimo controllo. */
     reset: () => d.saveNext(0),
+  };
+}
+
+/** Notifica di fine giro automatico quando dei portali hanno chiesto una verifica: testo e pagine da aprire al clic. */
+export function verifyNotice(blocked: Portal[]): { message: string; urls: string[] } {
+  const sites = blocked.map((p) => PORTAL_SITES[p]);
+  const many = sites.length > 1;
+  const names = many ? `${sites.slice(0, -1).join(', ')} e ${sites.at(-1)}` : (sites[0] ?? '');
+  return {
+    message: `${names} ${many ? 'hanno' : 'ha'} chiesto una verifica: ${many ? 'aprili' : 'aprilo'} tu`,
+    urls: sites.map((s) => `https://www.${s.toLowerCase()}/`),
   };
 }
