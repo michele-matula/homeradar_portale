@@ -150,7 +150,7 @@ describe('giro: esito', () => {
     s = markSeen(s, [obs(), obs({ portalId: 2, sellerType: 'agency' })]);
     expect(s.seen).toEqual(['immobiliare:128416572']);
     s = { ...s, drops: ['immobiliare:128416572'] };
-    expect(progressOf(s, 2)).toEqual({ startedAt: 100, total: 2, done: 0, current: IMM.key, portals: { immobiliare: { pages: 0, privates: 0 }, subito: { pages: 0, privates: 0 } }, newCount: 2, drops: 1 });
+    expect(progressOf(s, 2)).toEqual({ startedAt: 100, total: 2, done: 0, current: IMM.key, portals: { immobiliare: { pages: 0, privates: 0 }, subito: { pages: 0, privates: 0 } }, newCount: 2, drops: 1, auto: false });
   });
 
   it('pause nell\'intervallo del portale', () => {
