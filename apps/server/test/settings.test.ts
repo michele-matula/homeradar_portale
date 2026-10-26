@@ -49,3 +49,23 @@ describe('impostazioni dell\'agente', () => {
     expect((await fetchApi('PUT', '/api/settings', { minAgeDays: 90 }, { Cookie: a.cookie, Origin: 'https://evil.test' })).status).toBe(403);
   });
 });
+
+describe('giro automatico', () => {
+  it('spento e una volta al giorno di default', async () => {
+    expect(await get()).toMatchObject({ autoSweep: false, autoSweepHours: null });
+  });
+
+  it('si accende con una frequenza e il resto non cambia', async () => {
+    const r = await put({ autoSweep: true, autoSweepHours: 4 });
+    expect(r.status).toBe(200);
+    expect(await get()).toEqual({ ...DEFAULT_AGENT_SETTINGS, autoSweep: true, autoSweepHours: 4 });
+    await put({ autoSweepHours: null });
+    expect(await get()).toEqual({ ...DEFAULT_AGENT_SETTINGS, autoSweep: true, autoSweepHours: null });
+  });
+
+  it('frequenza non ammessa', async () => {
+    const r = await put({ autoSweepHours: 2 });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({ error: 'Frequenza del giro automatico non valida' });
+  });
+});
