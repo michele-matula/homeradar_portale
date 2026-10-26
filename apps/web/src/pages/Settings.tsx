@@ -162,7 +162,8 @@ export function Settings({ me, onSignOut, connector = chromeConnector }: { me: M
               </select>
             </label>
             <p className="hint">
-              Chrome deve essere aperto. Il giro parte fra le 7 e le 21, in una finestra ridotta a icona, e si ferma dalla notifica o da qui.
+              Chrome deve essere aperto. Il giro parte fra le 7 e le 21, in una finestra ridotta a icona, e si ferma dalla notifica o dal
+              riquadro «Ricerche» della lista dei lead.
             </p>
           </section>
           <div className="settings__actions">

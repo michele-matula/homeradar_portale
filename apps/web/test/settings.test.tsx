@@ -108,6 +108,7 @@ describe('giro automatico', () => {
     const freq = screen.getByRole('combobox', { name: 'Frequenza' }) as HTMLSelectElement;
     expect(freq.disabled).toBe(true);
     expect([...freq.options].map((o) => o.text)).toEqual(['Una volta al giorno', 'Ogni 8 ore', 'Ogni 6 ore', 'Ogni 4 ore', 'Ogni 3 ore']);
+    expect(screen.getByText(/si ferma dalla notifica o dal riquadro «Ricerche» della lista dei lead/)).toBeTruthy();
     fireEvent.click(on);
     expect(freq.disabled).toBe(false);
   });
