@@ -89,3 +89,48 @@ describe('impostazioni', () => {
     await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Errore del server'));
   });
 });
+
+describe('giro automatico', () => {
+  /** Il connettore installato: i messaggi che riceve dalla pagina. */
+  function connector() {
+    const sent: unknown[] = [];
+    vi.stubGlobal('chrome', { runtime: { sendMessage: (_id: string, m: unknown, cb: (r: unknown) => void) => { sent.push(m); cb({ ok: true, data: null }); } } });
+    return sent;
+  }
+  const putEcho = { 'PUT /api/settings': (b: unknown) => ({ status: 200, body: { ...DEFAULT_AGENT_SETTINGS, ...(b as object) } }) };
+
+  it('spento di default, frequenza disattivata finché è spento', async () => {
+    connector();
+    mockApi(routes());
+    renderAt('/impostazioni');
+    const on = (await screen.findByRole('checkbox', { name: 'Fai il giro da solo quando uso il computer' })) as HTMLInputElement;
+    expect(on.checked).toBe(false);
+    const freq = screen.getByRole('combobox', { name: 'Frequenza' }) as HTMLSelectElement;
+    expect(freq.disabled).toBe(true);
+    expect([...freq.options].map((o) => o.text)).toEqual(['Una volta al giorno', 'Ogni 8 ore', 'Ogni 6 ore', 'Ogni 4 ore', 'Ogni 3 ore']);
+    fireEvent.click(on);
+    expect(freq.disabled).toBe(false);
+  });
+
+  it('attivarlo lo salva e lo dice al connettore', async () => {
+    const sent = connector();
+    const calls = mockApi(routes(putEcho));
+    renderAt('/impostazioni');
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Fai il giro da solo quando uso il computer' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Frequenza' }), { target: { value: '4' } });
+    fireEvent.click(save());
+    await screen.findByText('Impostazioni salvate');
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ autoSweep: true, autoSweepHours: 4 });
+    await vi.waitFor(() => expect(sent).toEqual([{ type: 'autoChanged' }]));
+  });
+
+  it('salvare altro non disturba il connettore', async () => {
+    const sent = connector();
+    mockApi(routes(putEcho));
+    renderAt('/impostazioni');
+    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Online da almeno (giorni)' }), { target: { value: '60' } });
+    fireEvent.click(save());
+    await screen.findByText('Impostazioni salvate');
+    expect(sent).toEqual([]);
+  });
+});

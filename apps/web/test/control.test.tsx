@@ -30,7 +30,7 @@ const GROUP: ErrorGroup = {
 };
 const AGENT_PAGE: ControlAgent = {
   row: ROSSI,
-  sweeps: [ROSSI.lastSweep!, { id: 's0', startedAt: NOW - 2 * DAY, finishedAt: NOW - 2 * DAY + 60_000, outcome: 'interrupted', deviceName: null, searches: 1, problems: 1, auto: false }],
+  sweeps: [ROSSI.lastSweep!, { id: 's0', startedAt: NOW - 2 * DAY, finishedAt: NOW - 2 * DAY + 60_000, outcome: 'interrupted', deviceName: null, searches: 1, problems: 1, auto: true }],
   errors: [GROUP],
 };
 
@@ -75,7 +75,7 @@ describe('scheda dell\'agente', () => {
     expect(within(devices).getByText('0.3.0')).toBeTruthy();
     const runs = await screen.findByRole('table', { name: 'Ricerche del giro' });
     expect(within(runs).getByText('pagina non arrivata in tempo')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /interrotto/ }));
+    fireEvent.click(screen.getByRole('button', { name: /interrotto · automatico/ }));
     expect(await screen.findByText('annunci non letti')).toBeTruthy();
     expect(calls.some((c) => c.path === '/api/admin/sweeps/s0/runs')).toBe(true);
     expect(screen.getByText('Ricerca non riuscita: annunci non letti')).toBeTruthy();

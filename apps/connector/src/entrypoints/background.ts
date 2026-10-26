@@ -171,6 +171,7 @@ export default defineBackground(() => {
       sweeping: () => runner.running(),
       queueState: () => queue.state(),
       retryNow: () => void queue.flush({ force: true }).catch(() => {}),
+      autoChanged: () => {},
     }).then(sendResponse);
     return true;
   });

@@ -246,3 +246,24 @@ describe('computer collegati', () => {
     await vi.waitFor(() => expect(container.textContent).toBe(''));
   });
 });
+
+describe('giro automatico', () => {
+  it('in corso: lo dice il titolo', async () => {
+    mockApi({
+      'GET /api/sweep': { status: 200, body: { running: { startedAt: 1, total: 5, done: 2, current: 'x', portals: {}, newCount: 0, drops: 0, auto: true }, last: null } },
+    });
+    render(<Sweep userId="u1" connector={fakeConnector(() => ok({ ...STATE, sweeping: true })).port} phone={false} />);
+    expect(await screen.findByText(/^Giro automatico in corso/)).toBeTruthy();
+  });
+
+  it('ultimo giro automatico; i giri salvati prima non dicono niente', async () => {
+    const last = { startedAt: 1, finishedAt: 2, outcome: 'completed', portals: {}, notFound: [], newCount: 3, drops: 0, missing: 0 };
+    mockApi({ 'GET /api/sweep': { status: 200, body: { running: null, last: { ...last, auto: true } } } });
+    const { unmount } = render(<Sweep userId="u1" connector={fakeConnector(() => ok(STATE)).port} phone={false} />);
+    expect(await screen.findByText(/^Ultimo giro: .* · completato · 3 nuovi lead · automatico$/)).toBeTruthy();
+    unmount();
+    mockApi({ 'GET /api/sweep': { status: 200, body: { running: null, last } } });
+    render(<Sweep userId="u1" connector={fakeConnector(() => ok(STATE)).port} phone={false} />);
+    expect(await screen.findByText(/^Ultimo giro: .* · completato · 3 nuovi lead$/)).toBeTruthy();
+  });
+});

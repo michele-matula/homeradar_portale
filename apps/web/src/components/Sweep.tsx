@@ -35,7 +35,8 @@ function reasons(r: SweepResult): string[] {
 }
 
 // Durante il giro il server conta gli annunci nuovi; alla fine i lead nuovi (stesso immobile su più portali = uno).
-const lastLine = (last: SweepResult) => `Ultimo giro: ${formatDateTime(last.startedAt)} · ${OUTCOMES[last.outcome]} · ${last.newCount} nuovi lead`;
+const lastLine = (last: SweepResult) =>
+  `Ultimo giro: ${formatDateTime(last.startedAt)} · ${OUTCOMES[last.outcome]} · ${last.newCount} nuovi lead${last.auto ? ' · automatico' : ''}`;
 
 /** Giro delle ricerche: «Cerca» e «Ferma» (il connettore lo fa sul computer dell'agente), avanzamento e riepilogo. */
 export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), hasZone = true, onLinked, onFinished, onShowNew, onStatus }: {
@@ -150,7 +151,7 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
       <section className="card sweep">
         <h2>Ricerche</h2>
         <p>Le ricerche partono dal computer</p>
-        {status?.running && <p className="hint">{`Giro in corso: ${status.running.done} di ${status.running.total} ricerche`}</p>}
+        {status?.running && <p className="hint">{`${status.running.auto ? 'Giro automatico in corso' : 'Giro in corso'}: ${status.running.done} di ${status.running.total} ricerche`}</p>}
         {!status?.running && last && <p className="hint">{lastLine(last)}</p>}
       </section>
     );
@@ -169,7 +170,7 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
     const r = status.running;
     return (
       <section className="card sweep">
-        <h2>{`Ricerca in corso · ${minutes(now - r.startedAt)}`}</h2>
+        <h2>{`${r.auto ? 'Giro automatico in corso' : 'Ricerca in corso'} · ${minutes(now - r.startedAt)}`}</h2>
         <progress className="sweep__bar" max={r.total} value={r.done} aria-label="Ricerche fatte" />
         {r.current && <p className="sweep__current">{r.current}</p>}
         <ul className="sweep__portals">
