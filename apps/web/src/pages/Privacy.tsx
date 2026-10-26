@@ -13,8 +13,12 @@ export function Privacy() {
         <h2>Cosa fa il connettore</h2>
         <p>
           Il connettore è l'estensione di Chrome che fa il giro delle ricerche. Legge Immobiliare.it, Idealista, Subito e CasaDaPrivato solo
-          durante un giro che lanci tu dal portale con «Cerca», e solo nella scheda aperta per quel giro. Fuori dal giro non legge né manda
-          niente.
+          durante un giro, e solo nella scheda aperta per quel giro. Fuori dal giro non legge né manda niente.
+        </p>
+        <p>
+          Il giro lo lanci tu dal portale con «Cerca», oppure parte da solo, se l'hai attivato nelle impostazioni: fra le 7 e le 21, con
+          Chrome aperto e mentre usi il computer, in una finestra ridotta a icona. Il giro automatico è spento finché non lo attivi, e lo
+          fermi dalla notifica o dal portale.
         </p>
         <p>
           Su Immobiliare.it e Subito una piccola parte del connettore lavora dentro le pagine del sito, in ogni scheda: passa al resto del

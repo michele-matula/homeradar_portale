@@ -27,7 +27,7 @@ Obiettivo economico: circa 500 €/mese fra un anno (per esempio 20 agenti a 25 
 - Migrazione dei dati del pilota: si riparte da zero.
 - Pagamenti online: Michele fattura a mano.
 - Registrazione libera: solo su invito.
-- Lancio della ricerca dal telefono e ricerche programmate (seconda versione, §11).
+- Lancio della ricerca dal telefono (seconda versione, §11). Le ricerche programmate sono arrivate prima, come giro automatico: `docs/superpowers/specs/2026-10-26-giro-automatico-design.md`.
 - Badge sulle card dei portali e pannello laterale: spariscono.
 - Agenzie con più agenti e ruoli: un solo ruolo, l'agente singolo (più l'admin).
 - Notifiche fuori dal portale (mail, push): i richiami si vedono solo nel portale.
@@ -208,7 +208,7 @@ Si costruisce a tappe; il portale va al primo cliente solo quando tutte sono fin
 8. Parere legale → primo cliente.
 
 ## 11. Dopo la prima versione
-- Lancio della ricerca dal telefono (il connettore interroga il server ogni minuto con `chrome.alarms`; poi ricerche programmate, che vanno rivalutate anche dal lato legale).
+- Lancio della ricerca dal telefono (il connettore interroga il server ogni minuto con `chrome.alarms`). Le ricerche programmate sono già il giro automatico (tappa 6c), da valutare nel parere legale.
 - Coordinamento dei giri fra agenti della stessa zona (dividersi le ricerche invece di saltare quelle fresche).
 - Notifiche fuori dal portale, se servono.
 

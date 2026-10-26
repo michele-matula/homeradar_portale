@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import type { AdminUser } from '@homeradar/shared/api/types';
+import { PRIVACY_VERSION, type AdminUser } from '@homeradar/shared/api/types';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { cookieFrom, fetchApi, loginAs, resetDb } from './helpers';
 
@@ -21,7 +21,7 @@ async function create(email: string, comuni: string[] = [TREVIGLIO]): Promise<{ 
 async function activeAgent(email = 'luca@bianchi.it'): Promise<{ user: AdminUser; cookie: string }> {
   const { user, inviteUrl } = await create(email);
   const token = inviteUrl.split('/').pop()!;
-  const r = await fetchApi('POST', `/api/tokens/${token}`, { password: 'password-lunga', privacyVersion: 1 });
+  const r = await fetchApi('POST', `/api/tokens/${token}`, { password: 'password-lunga', privacyVersion: PRIVACY_VERSION });
   return { user, cookie: cookieFrom(r) };
 }
 

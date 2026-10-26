@@ -9,7 +9,7 @@ export type Role = 'agent' | 'admin';
 export type UserStatus = 'invited' | 'active' | 'suspended';
 
 /** Versione dell'informativa che l'agente accetta all'attivazione; si alza quando il testo cambia. */
-export const PRIVACY_VERSION = 1;
+export const PRIVACY_VERSION = 2;
 
 export const PASSWORD_MIN = 10;
 export const PASSWORD_MAX = 200;
