@@ -79,8 +79,15 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
 
   useEffect(() => {
     if (!hasZone) return;
-    void refresh();
-    if (!phone) void ping();
+    const read = () => {
+      if (document.visibilityState !== 'visible') return;
+      void refresh();
+      if (!phone) void ping();
+    };
+    read();
+    // Scheda lasciata aperta: un giro automatico può essere partito o finito mentre l'agente non guardava.
+    document.addEventListener('visibilitychange', read);
+    return () => document.removeEventListener('visibilitychange', read);
   }, [refresh, ping, phone, hasZone]);
 
   const running = status?.running != null;

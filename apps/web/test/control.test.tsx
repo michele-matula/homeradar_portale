@@ -1,6 +1,6 @@
 import { fireEvent, screen, within } from '@testing-library/react';
 import type { ControlAgent, ControlRow, ControlRun, ErrorGroup } from '@homeradar/shared/api/types';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ADMIN, AGENT, mockApi, renderAt } from './helpers';
 
 const NOW = Date.now();
@@ -56,7 +56,8 @@ describe('pagina «Controllo»', () => {
     mockApi({ 'GET /api/me': { status: 200, body: { user: AGENT } }, 'GET /api/leads': { status: 200, body: { leads: [] } } });
     renderAt('/admin/controllo');
     await screen.findByRole('link', { name: /Lead/ });
-    expect(window.location.pathname).toBe('/');
+    // Il link «Lead» del menu c'è già prima del rinvio: si aspetta l'indirizzo.
+    await vi.waitFor(() => expect(window.location.pathname).toBe('/'));
   });
 });
 

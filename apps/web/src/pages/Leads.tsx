@@ -79,10 +79,16 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
       if (document.visibilityState !== 'visible') return;
       api<LeadsVisit>('POST', '/api/leads/visit').then((v) => setVisitSince(v.newSince), () => {});
     };
+    // Al ritorno anche i lead si rileggono: un giro automatico può averne portati di nuovi.
+    const back = () => {
+      if (document.visibilityState !== 'visible') return;
+      visit();
+      void reload();
+    };
     visit();
-    document.addEventListener('visibilitychange', visit);
-    return () => document.removeEventListener('visibilitychange', visit);
-  }, [hasZone]);
+    document.addEventListener('visibilitychange', back);
+    return () => document.removeEventListener('visibilitychange', back);
+  }, [hasZone, reload]);
 
   // A mezzanotte di Roma i richiami di "oggi" cambiano: si ricalcola senza ricaricare.
   useEffect(() => {

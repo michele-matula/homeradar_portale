@@ -254,3 +254,17 @@ describe('lead nuovi dall\'ultima visita', () => {
     await vi.waitFor(() => expect(visits()).toBe(2));
   });
 });
+
+describe('scheda lasciata aperta', () => {
+  it('tornando sulla pagina si rileggono lead e stato del giro', async () => {
+    const calls = mockApi(routes());
+    renderAt('/');
+    await screen.findByRole('tab', { name: /^Da lavorare/ });
+    const count = (path: string) => calls.filter((c) => c.method === 'GET' && c.path === path).length;
+    await vi.waitFor(() => expect(count('/api/sweep')).toBeGreaterThan(0));
+    const [leads, sweep] = [count('/api/leads'), count('/api/sweep')];
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    await vi.waitFor(() => expect(count('/api/leads')).toBe(leads + 1));
+    await vi.waitFor(() => expect(count('/api/sweep')).toBe(sweep + 1));
+  });
+});
