@@ -40,6 +40,7 @@ function harness(o: Partial<RunnerDeps> = {}) {
     plan: async (): Promise<SweepPlan> => ({ sweepId: SWEEP_ID, searches: [IMM, SUB], skipped: 1 }),
     enqueue: async (x) => void queued.push(x),
     reportError: vi.fn(),
+    onEnd: vi.fn(),
     ...o,
   };
   const runner = createRunner(deps);
@@ -249,5 +250,39 @@ describe('errori del giro', () => {
     await h.runner.start();
     await h.runner.page(70, msg(page('immobiliare', { parseErrors: 3 })));
     expect(h.deps.reportError).toHaveBeenCalledWith('Ricerca non riuscita: annunci non letti', 'immobiliare');
+  });
+});
+
+describe('giro automatico nel runner', () => {
+  it('start chiede al server il piano automatico solo se richiesto', async () => {
+    const plan = vi.fn(async (): Promise<SweepPlan> => ({ sweepId: SWEEP_ID, searches: [IMM], skipped: 0 }));
+    const h = harness({ plan });
+    await h.runner.start({ auto: true });
+    expect(plan).toHaveBeenLastCalledWith(true);
+    await h.runner.stop();
+    await h.runner.start();
+    expect(plan).toHaveBeenLastCalledWith(false);
+  });
+
+  it('non dovuto: nessuna finestra, e il connettore sa quando richiedere', async () => {
+    const h = harness({ plan: async () => ({ sweepId: null, searches: [], skipped: 0, notDue: true, nextCheckAt: 5_000 }) });
+    expect(await h.runner.start({ auto: true })).toEqual({ sweepId: null, total: 0, skipped: 0, nextCheckAt: 5_000 });
+    expect(h.deps.openWindow).not.toHaveBeenCalled();
+  });
+
+  it('alla fine dice se era automatico e quali portali hanno chiesto una verifica', async () => {
+    const h = harness();
+    await h.runner.start({ auto: true });
+    await h.runner.page(70, msg(page('immobiliare', { results: 0, privates: 0, blocked: true }), []));
+    await h.fire();
+    await h.runner.page(70, msg(page('subito'), [obs({ portal: 'subito', portalId: 5, url: 'https://www.subito.it/x/5.htm' })]));
+    expect(h.deps.onEnd).toHaveBeenCalledWith({ auto: true, blocked: ['immobiliare'] });
+  });
+
+  it('un giro manuale fermato: non automatico, nessuna verifica', async () => {
+    const h = harness();
+    await h.runner.start();
+    await h.runner.stop();
+    expect(h.deps.onEnd).toHaveBeenCalledWith({ auto: false, blocked: [] });
   });
 });

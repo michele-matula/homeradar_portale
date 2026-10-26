@@ -3,7 +3,7 @@ import type { SweepStarted } from '@homeradar/shared/api/connector-messages';
 import {
   beginStep, createSweep, finishSweep, nextStep, onPageRead, onTimeout, pauseMs, samePage, stepUrl, stopSweep, type SearchErrorReason, type SweepState,
 } from '@homeradar/shared/core/sweep';
-import type { ListingObservation, SweepOutcome } from '@homeradar/shared/shared/types';
+import { PORTALS, type ListingObservation, type Portal, type SweepOutcome } from '@homeradar/shared/shared/types';
 import { batchFor, finishFor, settledRuns, toWire } from './outgoing';
 import type { Outgoing } from './queue-store';
 import type { ReaderMessage } from './reader';
@@ -26,6 +26,8 @@ export interface RunnerState {
   /** Annunci letti finora dalla pagina in caricamento: partono tutti insieme nel suo lotto. */
   pageObs: ListingObservation[];
   newestId: number | null;
+  /** Partito da solo (giro automatico): alla fine si avvisa con una notifica. */
+  auto?: boolean;
 }
 
 export interface RunnerDeps {
@@ -43,10 +45,12 @@ export interface RunnerDeps {
   saveState(s: RunnerState | null): Promise<void>;
   timing: Pick<ConnectorTiming, 'pageTimeoutMs' | 'pauseMs'>;
   /** Piano dal server; lancia un Error col messaggio del server. */
-  plan(): Promise<SweepPlan>;
+  plan(auto: boolean): Promise<SweepPlan>;
   enqueue(o: Outgoing): Promise<void>;
   /** Errore del giro per il server (finestra che non si apre, ricerca non riuscita); non aspetta e non lancia. */
   reportError(message: string, context?: string): void;
+  /** Giro finito, in qualunque modo: se era automatico e quali portali hanno chiesto una verifica. Non aspetta e non lancia. */
+  onEnd(e: { auto: boolean; blocked: Portal[] }): void;
 }
 
 type PageMessage = Extract<ReaderMessage, { type: 'page' }>;
@@ -150,6 +154,7 @@ export function createRunner(d: RunnerDeps) {
     await enqueueAll([...settledRuns(cur.sweep, final), finishFor(cur.sweep.id, final.status as SweepOutcome)]);
     await d.saveState(null);
     if (closeWindow) await d.closeWindow(cur.windowId).catch(() => {});
+    d.onEnd({ auto: cur.auto === true, blocked: PORTALS.filter((p) => final.halted[p] === 'blocked') });
   }
 
   /** Annunci della pagina attesa: si tengono fino al suo riassunto. */
@@ -161,11 +166,13 @@ export function createRunner(d: RunnerDeps) {
   }
 
   return {
-    start: () => serial(async (): Promise<SweepStarted> => {
+    start: ({ auto = false }: { auto?: boolean } = {}) => serial(async (): Promise<SweepStarted> => {
       if (await load()) throw new Error(SWEEP_RUNNING);
       generation++;
-      const plan = await d.plan();
-      if (!plan.sweepId || !plan.searches.length) return { sweepId: null, total: 0, skipped: plan.skipped };
+      const plan = await d.plan(auto);
+      if (!plan.sweepId || !plan.searches.length) {
+        return { sweepId: null, total: 0, skipped: plan.skipped, ...(plan.nextCheckAt != null ? { nextCheckAt: plan.nextCheckAt } : {}) };
+      }
       let sweep = createSweep(plan.searches, d.now(), plan.sweepId);
       const index = nextStep(sweep)!;
       sweep = beginStep(sweep, index);
@@ -180,7 +187,7 @@ export function createRunner(d: RunnerDeps) {
         throw err;
       }
       const { windowId, tabId } = ids;
-      st = { sweep, windowId, tabId, awaiting: true, expectedUrl, previousUrl: null, pageObs: [], newestId: null };
+      st = { sweep, windowId, tabId, awaiting: true, expectedUrl, previousUrl: null, pageObs: [], newestId: null, auto };
       stopKeepAlive = d.keepAlive();
       await d.saveState(st);
       armTimeout();
