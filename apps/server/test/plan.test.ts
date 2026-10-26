@@ -3,7 +3,8 @@ import type { SweepPlan } from '@homeradar/shared/api/connector';
 import { searchesFor } from '@homeradar/shared/core/searches';
 import { DEFAULT_SETTINGS } from '@homeradar/shared/shared/types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { toComuneRefs } from '../src/users';
+import { startSweep } from '../src/sweeps';
+import { findUserById, toComuneRefs } from '../src/users';
 import { fetchApi, fetchConnector, linkDevice, loginAs, resetDb } from './helpers';
 
 const MIN = 60_000;
@@ -137,5 +138,84 @@ describe('POST /connector/sweeps', () => {
     expect(r.status).toBe(400);
     expect(await r.json()).toEqual({ error: "Nessun comune assegnato: chiedi all'amministratore" });
     expect((await start(b, { comuni: ['016219'] })).status).toBe(400);
+  });
+});
+
+describe('giro automatico', () => {
+  /** 10:00 di Roma del 20 ottobre 2026 (ora legale, UTC+2): dentro la fascia. */
+  const NOW = Date.UTC(2026, 9, 20, 8);
+  const autoOn = (who: Agent, hours: number | null = null) =>
+    fetchApi('PUT', '/api/settings', { autoSweep: true, autoSweepHours: hours }, { Cookie: who.cookie });
+  const autoStart = async (who: Agent, now = NOW) => startSweep(env.DB, (await findUserById(env.DB, who.id))!, who.deviceId, now, true);
+  async function oldSweep(who: Agent, startedAt: number, outcome: string | null, trigger = 'manual', runs: [string, string][] = []) {
+    const id = crypto.randomUUID();
+    await env.DB.prepare('INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at, finished_at, outcome, trigger) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)')
+      .bind(id, who.id, startedAt, outcome ? startedAt + MIN : NOW, outcome ? startedAt + MIN : null, outcome, trigger).run();
+    for (const [portal, status] of runs) {
+      await env.DB.prepare("INSERT INTO search_runs (sweep_id, search_key, portal, spec, user_id, status, finished_at) VALUES (?, ?, ?, '{}', ?, ?, ?)")
+        .bind(id, `${portal}|x`, portal, who.id, status, startedAt + MIN).run();
+    }
+  }
+
+  it('spento: non dovuto, nessun giro (anche via HTTP)', async () => {
+    const r = await start(a, { auto: true });
+    expect(r.status).toBe(200);
+    const plan = (await r.json()) as SweepPlan;
+    expect(plan).toMatchObject({ sweepId: null, notDue: true });
+    expect(plan.nextCheckAt).toBeGreaterThan(Date.now());
+    expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sweeps WHERE user_id = ?').bind(a.id).first('n')).toBe(0);
+  });
+
+  it('dovuto: il giro parte ed è segnato automatico', async () => {
+    await autoOn(a);
+    const plan = (await autoStart(a)) as SweepPlan;
+    expect(plan.sweepId).not.toBeNull();
+    expect(plan.searches).toEqual(SPECS);
+    expect(await env.DB.prepare('SELECT trigger FROM sweeps WHERE id = ?').bind(plan.sweepId).first('trigger')).toBe('auto');
+  });
+
+  it('una volta al giorno: un giro completato stamattina basta, anche manuale', async () => {
+    await autoOn(a);
+    await oldSweep(a, NOW - 2 * 3_600_000, 'completed');
+    const plan = (await autoStart(a)) as SweepPlan;
+    expect(plan).toMatchObject({ sweepId: null, notDue: true, nextCheckAt: Date.UTC(2026, 9, 21, 5) });
+  });
+
+  it('ogni 4 ore: dovuto dopo 4 ore', async () => {
+    await autoOn(a, 4);
+    await oldSweep(a, NOW - 5 * 3_600_000, 'completed');
+    expect(((await autoStart(a)) as SweepPlan).sweepId).not.toBeNull();
+  });
+
+  it('un portale che ha chiesto una verifica nelle 24 ore resta fuori dal giro automatico, non da quello manuale', async () => {
+    await autoOn(a);
+    await oldSweep(a, NOW - 26 * 3_600_000, 'partial', 'auto', [['idealista', 'blocked']]);
+    await env.DB.prepare("UPDATE search_runs SET finished_at = ? WHERE user_id = ? AND status = 'blocked'").bind(NOW - 2 * 3_600_000, a.id).run();
+    const auto = (await autoStart(a)) as SweepPlan;
+    expect(auto.searches.some((s) => s.portal === 'idealista')).toBe(false);
+    expect(auto.searches.length).toBeGreaterThan(0);
+    await env.DB.prepare('UPDATE sweeps SET finished_at = ?, outcome = ? WHERE id = ?').bind(NOW, 'stopped', auto.sweepId).run();
+    const manual = (await startSweep(env.DB, (await findUserById(env.DB, a.id))!, a.deviceId, NOW, false)) as SweepPlan;
+    expect(manual.searches.some((s) => s.portal === 'idealista')).toBe(true);
+  });
+
+  it('tutto fresco: non dovuto, si riprova alla soglia successiva', async () => {
+    await autoOn(a, 6);
+    const id = crypto.randomUUID();
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO sweeps (id, user_id, started_at, last_activity_at, finished_at) VALUES (?, ?, 1, 1, 1)').bind(id, b.id),
+      ...SPECS.map((s) => env.DB.prepare("INSERT INTO search_runs (sweep_id, search_key, portal, spec, user_id, status, finished_at) VALUES (?, ?, ?, '{}', ?, 'complete', ?)")
+        .bind(id, s.key, s.portal, b.id, NOW - 10 * MIN)),
+    ]);
+    const plan = (await autoStart(a)) as SweepPlan;
+    expect(plan).toMatchObject({ sweepId: null, notDue: true, nextCheckAt: NOW + 6 * 3_600_000 });
+    expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sweeps WHERE user_id = ?').bind(a.id).first('n')).toBe(0);
+  });
+
+  it('giro aperto su un altro computer: conta come giro in corso, non dovuto e senza errore', async () => {
+    await autoOn(a, 4);
+    const other = await linkDevice(a.id);
+    await startSweep(env.DB, (await findUserById(env.DB, a.id))!, other.id, NOW - 10 * MIN, false);
+    expect(await autoStart(a)).toMatchObject({ sweepId: null, notDue: true, nextCheckAt: NOW - 10 * MIN + 4 * 3_600_000 });
   });
 });

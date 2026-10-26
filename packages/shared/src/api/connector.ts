@@ -97,7 +97,8 @@ export const RunBody = body({
 });
 
 export const FinishBody = body({ outcome: z.enum(['completed', 'partial', 'stopped', 'interrupted'], { error: 'Esito non valido' }) });
-export const StartSweepBody = body({});
+/** `auto`: il connettore parte da solo, e il server apre il giro solo se è dovuto (`core/auto-sweep`). */
+export const StartSweepBody = body({ auto: z.boolean({ error: 'Richiesta non valida' }).optional() });
 
 const BAD_REQUEST = { error: 'Richiesta non valida' };
 const field = (max: number) => z.string(BAD_REQUEST).min(1, BAD_REQUEST).max(max, BAD_REQUEST);
@@ -123,6 +124,9 @@ export interface SweepPlan {
   sweepId: string | null;
   searches: SearchSpec[];
   skipped: number;
+  /** Solo per `auto`: il giro non era dovuto; il connettore non richiede prima di `nextCheckAt`. */
+  notDue?: true;
+  nextCheckAt?: number;
 }
 
 export type Batch = z.infer<typeof BatchBody>;

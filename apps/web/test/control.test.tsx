@@ -12,7 +12,7 @@ const ROSSI: ControlRow = {
     { id: 'd1', name: 'Chrome · Windows', version: '0.4.0', createdAt: NOW - 30 * DAY, lastSeenAt: NOW - DAY, lastGoodSweepAt: NOW - DAY },
     { id: 'd2', name: 'Chrome · macOS', version: '0.3.0', createdAt: NOW - 20 * DAY, lastSeenAt: NOW - 9 * DAY, lastGoodSweepAt: null },
   ],
-  lastSweep: { id: 's1', startedAt: NOW - DAY, finishedAt: NOW - DAY + 60_000, outcome: 'completed', deviceName: 'Chrome · Windows', searches: 3, problems: 1 },
+  lastSweep: { id: 's1', startedAt: NOW - DAY, finishedAt: NOW - DAY + 60_000, outcome: 'completed', deviceName: 'Chrome · Windows', searches: 3, problems: 1, auto: false },
   sweeps30d: 6, errors7d: 2, health: 'warn', reasons: ['Connettore Chrome · macOS muto da 9 giorni', 'Ultimo giro: 1 ricerca con problemi'],
 };
 const VERDI: ControlRow = {
@@ -30,7 +30,7 @@ const GROUP: ErrorGroup = {
 };
 const AGENT_PAGE: ControlAgent = {
   row: ROSSI,
-  sweeps: [ROSSI.lastSweep!, { id: 's0', startedAt: NOW - 2 * DAY, finishedAt: NOW - 2 * DAY + 60_000, outcome: 'interrupted', deviceName: null, searches: 1, problems: 1 }],
+  sweeps: [ROSSI.lastSweep!, { id: 's0', startedAt: NOW - 2 * DAY, finishedAt: NOW - 2 * DAY + 60_000, outcome: 'interrupted', deviceName: null, searches: 1, problems: 1, auto: false }],
   errors: [GROUP],
 };
 

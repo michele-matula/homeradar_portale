@@ -13,7 +13,7 @@ type Base = Omit<ControlRow, 'health' | 'reasons'>;
 const base = (o: Partial<Base> = {}): Base => ({
   userId: 'u', email: 'a@b.it', status: 'active', lastSeenAt: NOW - DAY,
   devices: [{ id: 'd', name: 'Chrome · Windows', version: '0.4.0', createdAt: NOW - 30 * DAY, lastSeenAt: NOW - DAY, lastGoodSweepAt: NOW - DAY }],
-  lastSweep: { id: 's', startedAt: NOW - DAY, finishedAt: NOW - DAY + 60_000, outcome: 'completed', deviceName: 'Chrome · Windows', searches: 4, problems: 0 },
+  lastSweep: { id: 's', startedAt: NOW - DAY, finishedAt: NOW - DAY + 60_000, outcome: 'completed', deviceName: 'Chrome · Windows', searches: 4, problems: 0, auto: false },
   sweeps30d: 5, errors7d: 0, ...o,
 });
 
@@ -212,5 +212,19 @@ describe('errori 7 gg', () => {
     const [row] = await get<ControlRow[]>(admin.cookie, '/api/admin/control');
     expect(row!.errors7d).toBe(1);
     expect(row!.reasons).toContain('1 errore diverso negli ultimi 7 giorni');
+  });
+});
+
+describe('giri automatici nel controllo', () => {
+  it('la scheda dell\'agente dice quali giri erano automatici', async () => {
+    const admin = await loginAs('admin');
+    const u = await loginAs('agent');
+    const d = await linkDevice(u.id);
+    const manual = await sweep(u.id, d.id, { startedAt: Date.now() - 2 * 3_600_000 });
+    const auto = await sweep(u.id, d.id, { startedAt: Date.now() - 3_600_000 });
+    await env.DB.prepare("UPDATE sweeps SET trigger = 'auto' WHERE id = ?").bind(auto).run();
+    const a = await get<ControlAgent>(admin.cookie, `/api/admin/control/${u.id}`);
+    expect(a.sweeps.map((s) => [s.id, s.auto])).toEqual([[auto, true], [manual, false]]);
+    expect(a.row.lastSweep!.auto).toBe(true);
   });
 });

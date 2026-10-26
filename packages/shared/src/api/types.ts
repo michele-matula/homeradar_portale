@@ -167,6 +167,8 @@ export interface ControlSweep {
   searches: number;
   /** Ricerche `blocked` o `error`. */
   problems: number;
+  /** Partito da solo (giro automatico). */
+  auto: boolean;
 }
 
 export interface ControlRow {
