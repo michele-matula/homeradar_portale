@@ -101,7 +101,7 @@ describe('scheda del lead', () => {
     await screen.findByRole('region', { name: 'Scheda del lead' });
     fireEvent.click(within(detail()).getByRole('button', { name: 'Separa annuncio precedente Idealista' }));
     await vi.waitFor(() => expect(calls.filter((c) => c.path === '/api/leads')).toHaveLength(2));
-    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ key: 'idealista:2', fromKeys: ['immobiliare:1'] });
+    expect(calls.find((c) => c.method === 'POST' && c.path === '/api/leads/split')?.body).toEqual({ key: 'idealista:2', fromKeys: ['immobiliare:1'] });
   });
 
   /** Come `mockApi`, ma le PATCH e le POST rispondono quando il test le libera (in ordine di partenza). */
