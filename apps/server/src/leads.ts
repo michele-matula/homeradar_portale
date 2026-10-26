@@ -75,3 +75,20 @@ export async function splitLead(db: D1Database, user: UserRow, key: string, from
   await db.batch([...states.map((s) => putState(db, user.id, s)), ...pairs.map((p) => putSplit(db, user.id, p))]);
   return null;
 }
+
+/** Una visita della lista inizia dopo così senza averla aperta. */
+export const VISIT_GAP_MS = 30 * 60_000;
+
+/**
+ * L'agente apre la lista: all'inizio di una visita la soglia del «nuovo» diventa l'apertura precedente, poi resta ferma
+ * finché la visita dura. Restituisce la soglia, null se non c'è ancora una visita precedente.
+ */
+export async function leadsVisit(db: D1Database, userId: string, now: number): Promise<number | null> {
+  // In SQLite ogni espressione del SET legge i valori di prima: `leads_seen_at` a destra è quello vecchio.
+  const r = await db
+    .prepare(`UPDATE users SET new_since = CASE WHEN leads_seen_at < ?1 THEN leads_seen_at ELSE new_since END, leads_seen_at = ?2
+      WHERE id = ?3 RETURNING new_since`)
+    .bind(now - VISIT_GAP_MS, now, userId)
+    .first<{ new_since: number | null }>();
+  return r?.new_since ?? null;
+}

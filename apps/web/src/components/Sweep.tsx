@@ -48,7 +48,7 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
   onLinked?(): void;
   /** Un giro in corso è appena finito: i lead vanno riletti. */
   onFinished?(): void;
-  /** «Vedi i nuovi»: solo i lead nuovi dell'ultimo giro. */
+  /** «Vedi i nuovi»: solo i lead nuovi (dall'ultima visita della lista). */
   onShowNew?(): void;
   /** Ogni stato letto da `/api/sweep`: la lista ne ricava da quando un lead è nuovo. */
   onStatus?(status: SweepStatus): void;

@@ -118,6 +118,11 @@ export interface LeadsResponse {
   dueRecalls: number;
 }
 
+/** Risposta di `POST /api/leads/visit`: da quando un lead è nuovo in questa visita; null prima della seconda visita. */
+export interface LeadsVisit {
+  newSince: number | null;
+}
+
 const ListingKey = z.string({ error: 'Annuncio non valido' }).regex(/^(immobiliare|idealista|subito|casadaprivato):\d+$/, { error: 'Annuncio non valido' });
 const NOTES_ERROR = { error: 'Note troppo lunghe' };
 export const LeadStateBody = body({

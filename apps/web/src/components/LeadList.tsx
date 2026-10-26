@@ -21,7 +21,7 @@ function pageRows(result: FilteredLeads, tab: Tab, items: LeadView[], offset: nu
     const inNewGroup = offset + i < result.newHead;
     const next: GroupKey | null = tab === 'recall' ? kindOf.get(l.listing.key) ?? null : result.newHead > 0 ? (inNewGroup ? 'new' : 'other') : null;
     if (next && next !== group) {
-      const title = next === 'new' ? `Nuovi dall'ultimo giro · ${result.newHead}`
+      const title = next === 'new' ? `Nuovi dall'ultima visita · ${result.newHead}`
         : next === 'other' ? `Altri lead · ${result.visible.length - result.newHead}`
         : RECALL_GROUP_LABELS[next];
       out.push(<li key={`group-${next}`} className={`leads__group leads__group--${next}`}><h3>{title}</h3></li>);

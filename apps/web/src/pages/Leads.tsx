@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { LeadsResponse, Me } from '@homeradar/shared/api/types';
+import type { LeadsResponse, LeadsVisit, Me } from '@homeradar/shared/api/types';
 import { isNewLead } from '@homeradar/shared/core/lead-groups';
 import { leadKeys } from '@homeradar/shared/core/leads';
 import { isDue, nextRecallCheck } from '@homeradar/shared/core/recall';
@@ -45,8 +45,11 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
   const [sortByTab, setSortByTab] = useState<SortByTab>(loadSortByTab);
   const [filtersOpen, setFiltersOpen] = useState(loadFiltersOpen);
   const [now, setNow] = useState(Date.now);
-  /** Inizio del giro in corso, altrimenti dell'ultimo finito: i lead visti da allora sono nuovi. */
-  const [newSince, setNewSince] = useState<number | null>(null);
+  /** Apertura della lista nella visita precedente: i lead comparsi da allora sono nuovi (`POST /api/leads/visit`). */
+  const [visitSince, setVisitSince] = useState<number | null>(null);
+  /** Senza visite precedenti: inizio del giro in corso, altrimenti dell'ultimo finito. */
+  const [sweepSince, setSweepSince] = useState<number | null>(null);
+  const newSince = visitSince ?? sweepSince;
   const [page, setPage] = useState(1);
   const isNarrow = useNarrow();
   const hasZone = me.comuni.length > 0;
@@ -68,6 +71,18 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
   useEffect(() => {
     if (hasZone) void reload();
   }, [reload, hasZone]);
+
+  // Apertura della lista e ritorno sulla pagina (scheda lasciata aperta dalla sera prima): il server decide se è una visita nuova.
+  useEffect(() => {
+    if (!hasZone) return;
+    const visit = () => {
+      if (document.visibilityState !== 'visible') return;
+      api<LeadsVisit>('POST', '/api/leads/visit').then((v) => setVisitSince(v.newSince), () => {});
+    };
+    visit();
+    document.addEventListener('visibilitychange', visit);
+    return () => document.removeEventListener('visibilitychange', visit);
+  }, [hasZone]);
 
   // A mezzanotte di Roma i richiami di "oggi" cambiano: si ricalcola senza ricaricare.
   useEffect(() => {
@@ -124,7 +139,7 @@ export function Leads({ me, onSignOut, connector }: { me: Me; onSignOut(): void;
           connector={connector}
           hasZone={hasZone}
           onFinished={reload}
-          onStatus={(s: SweepStatus) => setNewSince(s.running?.startedAt ?? s.last?.startedAt ?? null)}
+          onStatus={(s: SweepStatus) => setSweepSince(s.running?.startedAt ?? s.last?.startedAt ?? null)}
           onShowNew={() => {
             setFilters({ ...EMPTY_FILTERS, newOnly: true });
             setTab('new');

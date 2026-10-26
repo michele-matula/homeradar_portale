@@ -80,7 +80,7 @@ describe('lista dei lead', () => {
     renderAt('/');
     fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
     await vi.waitFor(() => expect(rows()).toEqual(['Apri il lead: Appena trovato', 'Apri il lead: Vecchio']));
-    expect(screen.getByRole('heading', { name: 'Nuovi dall\'ultimo giro · 1' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Nuovi dall\'ultima visita · 1' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Altri lead · 1' })).toBeTruthy();
     expect(within(screen.getByRole('link', { name: 'Apri il lead: Appena trovato' })).getByText('NUOVO')).toBeTruthy();
     expect(within(screen.getByRole('link', { name: 'Apri il lead: Vecchio' })).queryByText('NUOVO')).toBeNull();
@@ -214,5 +214,43 @@ describe('lista dei lead', () => {
     });
     expect(await screen.findByRole('link', { name: /1 da richiamare/ })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Richiami (1 da fare)' })).toBeTruthy();
+  });
+});
+
+describe('lead nuovi dall\'ultima visita', () => {
+  const sweepAt = Date.now() - 60_000;
+  const last = { startedAt: sweepAt, finishedAt: sweepAt + 30_000, outcome: 'completed', portals: {}, notFound: [], newCount: 1, drops: 0, missing: 0 };
+  const LIST = [
+    lead({ key: 'subito:1', title: 'Di stanotte', firstSeenAt: sweepAt - 5 * 3_600_000 }),
+    lead({ key: 'subito:2', title: 'Di ieri', priority: 'medium', firstSeenAt: sweepAt - 30 * 3_600_000 }),
+  ];
+
+  it('nuovo = comparso dopo la visita precedente, anche se trovato da un giro prima dell\'ultimo', async () => {
+    mockApi(routes(LIST, {
+      'GET /api/sweep': { status: 200, body: { running: null, last } },
+      'POST /api/leads/visit': { status: 200, body: { newSince: sweepAt - 10 * 3_600_000 } },
+    }));
+    renderAt('/');
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
+    await vi.waitFor(() => expect(within(screen.getByRole('link', { name: 'Apri il lead: Di stanotte' })).getByText('NUOVO')).toBeTruthy());
+    expect(within(screen.getByRole('link', { name: 'Apri il lead: Di ieri' })).queryByText('NUOVO')).toBeNull();
+  });
+
+  it('senza visite precedenti vale l\'inizio dell\'ultimo giro', async () => {
+    mockApi(routes(LIST, { 'GET /api/sweep': { status: 200, body: { running: null, last } } }));
+    renderAt('/');
+    fireEvent.click(await screen.findByRole('tab', { name: /^Da lavorare/ }));
+    await screen.findByRole('link', { name: 'Apri il lead: Di stanotte' });
+    expect(screen.queryByText('NUOVO')).toBeNull();
+  });
+
+  it('tornando sulla pagina si registra una visita', async () => {
+    const calls = mockApi(routes(LIST));
+    renderAt('/');
+    await screen.findByRole('tab', { name: /^Da lavorare/ });
+    const visits = () => calls.filter((c) => c.method === 'POST' && c.path === '/api/leads/visit').length;
+    await vi.waitFor(() => expect(visits()).toBe(1));
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    await vi.waitFor(() => expect(visits()).toBe(2));
   });
 });

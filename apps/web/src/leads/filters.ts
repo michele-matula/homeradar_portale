@@ -36,7 +36,7 @@ export interface LeadFilters {
   /** Codici ISTAT della zona e/o `OTHER_COMUNI`; vuoto = tutti i comuni. */
   comuni: string[];
   missingOnly: boolean;
-  /** Solo i lead nuovi dell'ultimo giro (`isNewLead`). */
+  /** Solo i lead nuovi dall'ultima visita (`isNewLead`). */
   newOnly: boolean;
 }
 
@@ -57,7 +57,7 @@ export interface FilteredLeads {
   multiCount: number;
   categoryCounts: Record<PropertyCategory, number>;
   missingCount: number;
-  /** Nuovi dell'ultimo giro fra quelli della scheda. */
+  /** Nuovi dall'ultima visita fra quelli della scheda. */
   newCount: number;
   /** In ordine di lista: prima tutti i nuovi, poi gli altri. */
   visible: LeadView[];
@@ -82,7 +82,7 @@ export function queryOf(f: LeadFilters): LeadQuery {
   return { text: f.text, minPrice: min === 'invalid' ? null : min, maxPrice: max === 'invalid' ? null : max, reservedOnly: f.reservedOnly };
 }
 
-/** `newSince`: inizio dell'ultimo giro, da cui un lead è nuovo; null senza giri. */
+/** `newSince`: da quando un lead è nuovo (visita precedente della lista, altrimenti inizio dell'ultimo giro); null se nessuno dei due. */
 export function filterLeads(leads: LeadView[], f: LeadFilters, tab: Tab, zone: ComuneRef[], sortByTab: SortByTab, now: number, newSince: number | null): FilteredLeads {
   const query = queryOf(f);
   const isNew = (l: LeadView) => isNewLead(l, newSince);

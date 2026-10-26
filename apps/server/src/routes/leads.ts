@@ -1,6 +1,6 @@
-import { AgentSettingsBody, LeadStateBody, SplitBody, type LeadsResponse } from '@homeradar/shared/api/types';
+import { AgentSettingsBody, LeadStateBody, SplitBody, type LeadsResponse, type LeadsVisit } from '@homeradar/shared/api/types';
 import { fail, json, readBody, type Route } from '../http';
-import { agentLeads, dueRecallCount, setLeadState, splitLead } from '../leads';
+import { agentLeads, dueRecallCount, leadsVisit, setLeadState, splitLead } from '../leads';
 import { userRoute } from '../session';
 import { getSettings, saveSettings } from '../settings';
 import { sweepStatus } from '../sweeps';
@@ -11,6 +11,9 @@ export const leadRoutes: Route[] = [
     const leads = await agentLeads(env.DB, user, now);
     return json({ leads, dueRecalls: dueRecallCount(leads, now) } satisfies LeadsResponse);
   }),
+
+  // L'agente apre la lista dei lead: soglia del «nuovo» della visita (mai dall'admin, che non ha rotte per agire come l'agente).
+  userRoute('POST', '/api/leads/visit', async (_req, env, _p, { user, now }) => json({ newSince: await leadsVisit(env.DB, user.id, now) } satisfies LeadsVisit)),
 
   userRoute('PATCH', '/api/leads/state', async (req, env, _p, { user, now }) => {
     const body = await readBody(req, LeadStateBody);
