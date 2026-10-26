@@ -15,6 +15,10 @@ export interface AutoDeps {
   saveNext(at: number): Promise<void>;
   /** `runner.start({ auto: true })`: il server apre il giro solo se è dovuto. */
   start(): Promise<SweepStarted>;
+  /** Avvio del browser (in `storage.session`, che il riavvio svuota). */
+  browserStartedAt(): Promise<number>;
+  /** Nei primi istanti dopo l'avvio non si chiede: Chrome ripristina le schede e fa scattare subito gli allarmi in ritardo. */
+  startDelayMs: number;
 }
 
 /**
@@ -25,6 +29,7 @@ export function createAutoSweep(d: AutoDeps) {
   let inFlight: Promise<'started' | 'skipped'> | null = null;
 
   async function run(): Promise<'started' | 'skipped'> {
+    if (d.now() - (await d.browserStartedAt()) < d.startDelayMs) return 'skipped';
     if (!(await d.linked()) || (await d.running()) || (await d.idleState()) !== 'active' || d.now() < (await d.loadNext())) return 'skipped';
     try {
       const r = await d.start();

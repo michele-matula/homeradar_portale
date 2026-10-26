@@ -17,6 +17,8 @@ function deps(o: Partial<AutoDeps> = {}) {
       next = at;
     }),
     start: vi.fn(async (): Promise<SweepStarted> => ({ sweepId: 'g', total: 3, skipped: 0 })),
+    browserStartedAt: vi.fn(async () => NOW - 10 * MIN),
+    startDelayMs: 2 * MIN,
     ...o,
   };
   return d;
@@ -69,5 +71,13 @@ describe('giro automatico: quando chiedere', () => {
     const d = deps({ loadNext: async () => NOW + 1 });
     await createAutoSweep(d).reset();
     expect(d.saveNext).toHaveBeenCalledWith(0);
+  });
+});
+
+describe('avvio del browser', () => {
+  it('nei primi minuti dopo l\'avvio non chiede, anche se un allarme in ritardo scatta subito', async () => {
+    const d = deps({ browserStartedAt: async () => NOW - MIN });
+    expect(await createAutoSweep(d).check()).toBe('skipped');
+    expect(d.start).not.toHaveBeenCalled();
   });
 });

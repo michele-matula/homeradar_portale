@@ -156,7 +156,19 @@ export default defineBackground(() => {
       void queue.flush({ force: true }).catch(() => {});
       return runner.start({ auto: true });
     },
+    browserStartedAt,
+    startDelayMs: TIMING.autoStartDelayMs,
   });
+  /** storage.session si svuota quando il browser riparte: se manca l'istante, il browser è appena partito. */
+  async function browserStartedAt(): Promise<number> {
+    const at = (await browser.storage.session.get('startedAt')).startedAt as number | undefined;
+    if (at != null) return at;
+    const now = Date.now();
+    await browser.storage.session.set({ startedAt: now });
+    return now;
+  }
+  // Si segna subito, al primo risveglio del worker: l'allarme dei 2 minuti deve trovare l'istante già salvato.
+  void browserStartedAt().catch(() => {});
   async function checkAuto(): Promise<void> {
     if ((await auto.check()) !== 'started') return;
     void browser.notifications.create('auto', {
