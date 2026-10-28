@@ -13,7 +13,7 @@ function lead(portal: Portal, priority: Priority, firstSeenAt: number, others: n
     address: 'Via Roma 12', city: 'Milano', zone: 'Brera', typology: 'Appartamento', surfaceM2: 80, rooms: 3, currentPrice: 350000,
     portalCreatedAt: null, estimatedCreatedAt: null, lastDrop: null, firstSeenAt: seen, lastSeenAt: seen, seenCount: 1, category: 'residential' as const, sweepScope: null, missedSweeps: 0, missingSince: null,
   });
-  const evaluation = { listingKey: `${portal}:1`, portalId: 1, priority, ageDays: 10, ageEstimated: false, ageUncertain: false, dropPercent: 0, dropCount: 0, maxKnownPrice: 350000, reasons: [], badgeText: '' };
+  const evaluation = { listingKey: `${portal}:1`, portalId: 1, priority, ageDays: 10, ageEstimated: false, ageUncertain: false, dropPercent: 0, dropCount: 0, maxKnownPrice: 350000, reasons: [], badgeText: '', returnedAt: null };
   return {
     listing: listing(1, firstSeenAt), evaluation,
     state: { listingKey: `${portal}:1`, status: 'new', notes: 'chiamare il sig. Bianchi 3331234567', statusChangedAt: 0, updatedAt: 0, recallAt: null },

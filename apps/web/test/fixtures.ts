@@ -34,7 +34,7 @@ export function lead(o: LeadOver = {}): LeadView {
     listing: l,
     evaluation: {
       listingKey: key, portalId: l.portalId, priority: o.priority ?? 'high', ageDays: 100, ageEstimated: false, ageUncertain: false,
-      dropPercent: 0, dropCount: 0, maxKnownPrice: l.currentPrice, reasons: ['Online da 100 giorni'], badgeText: '',
+      dropPercent: 0, dropCount: 0, maxKnownPrice: l.currentPrice, reasons: ['Online da 100 giorni'], badgeText: '', returnedAt: null,
     },
     state: { listingKey: key, status: o.status ?? 'new', notes: o.notes ?? '', statusChangedAt: 0, updatedAt: 0, recallAt: o.recallAt ?? null },
     prices: [],
