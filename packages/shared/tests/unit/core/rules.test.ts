@@ -294,6 +294,16 @@ describe('online al massimo', () => {
     expect(e.priority).toBe('none');
   });
 
+  it('Idealista: un ribasso senza data visto alla prima osservazione non fa rientrare', () => {
+    const today = Date.UTC(2026, 9, 10);
+    const idea = listing({
+      key: 'idealista:1', portal: 'idealista', estimatedCreatedAt: daysAgo(2000),
+      lastDrop: { ...lastDrop, date: today, dateEstimated: true }, firstSeenAt: daysAgo(0),
+    });
+    const prices = [snap(249000, today - 1, 'declared'), snap(235000, today, 'declared'), snap(235000, daysAgo(0))];
+    expect(ev(idea, prices, MAX).priority).toBe('none');
+  });
+
   it('ripubblicazione di un immobile oltre il massimo: resta oltre il massimo', () => {
     const before = listing({ portalCreatedAt: daysAgo(400), currentPrice: 270000 });
     const head = listing({ key: 'immobiliare:2', portalId: 2, portalCreatedAt: daysAgo(20), currentPrice: 270000 });

@@ -61,9 +61,10 @@ const lastOf = <T>(items: T[], ok: (t: T) => boolean): T | undefined => {
 /**
  * Cambi di prezzo, in ordine di tempo. Li fanno gli snapshot osservati; quelli dichiarati ne danno solo la data, così il
  * prezzo «prima» di un ribasso dichiarato non diventa un rialzo e lo stesso ribasso osservato e dichiarato conta una volta.
- * Unica eccezione: un ribasso dichiarato che arriva con la prima osservazione.
+ * Unica eccezione: un ribasso dichiarato che arriva con la prima osservazione, se il portale ne dà la data
+ * (`declaredDatesEstimated` falso): Idealista non la dà, e un ribasso di anni fa sembrerebbe di oggi.
  */
-export function priceChanges(snapshots: PriceSnapshot[]): PriceChange[] {
+export function priceChanges(snapshots: PriceSnapshot[], declaredDatesEstimated = false): PriceChange[] {
   const ordered = [...snapshots].sort((a, b) => a.at - b.at);
   const declared = ordered.filter((s) => s.source === 'declared');
   const out: PriceChange[] = [];
@@ -71,6 +72,10 @@ export function priceChanges(snapshots: PriceSnapshot[]): PriceChange[] {
   for (const s of ordered) {
     if (s.source !== 'observed') continue;
     if (prev == null) {
+      if (declaredDatesEstimated) {
+        prev = s;
+        continue;
+      }
       const to = lastOf(declared, (d) => d.price === s.price && d.at <= s.at);
       const from = to && declared.find((d) => d.at === to.at - 1 && d.price !== to.price);
       if (to && from) out.push({ from: from.price, to: s.price, date: to.at, knownAt: s.at });
@@ -85,10 +90,10 @@ export function priceChanges(snapshots: PriceSnapshot[]): PriceChange[] {
 }
 
 /** Ultimo cambio recente che fa rientrare un immobile oltre il massimo: un rialzo qualsiasi o un ribasso dalla soglia in su. */
-function returningChange(prices: PriceSnapshot[], settings: RuleSettings, now: number): PriceChange | null {
+function returningChange(listing: ListingRecord, prices: PriceSnapshot[], settings: RuleSettings, now: number): PriceChange | null {
   const since = now - RECENT_CHANGE_DAYS * DAY_MS;
   let best: PriceChange | null = null;
-  for (const c of priceChanges(prices)) {
+  for (const c of priceChanges(prices, listing.lastDrop?.dateEstimated === true)) {
     const counts = c.to > c.from || ((c.from - c.to) / c.from) * 100 >= settings.minDropPercent;
     if (c.date >= since && counts && (!best || c.knownAt > best.knownAt)) best = c;
   }
@@ -205,7 +210,7 @@ export type RuleSettings = Pick<Settings, 'minAgeDays' | 'minDropPercent'> & { m
 
 export function evaluate(listing: ListingRecord, snapshots: PriceSnapshot[], settings: RuleSettings, now: number): Evaluation {
   const age = ageFacts(listing, settings, now);
-  const pastMax = isPastMax(age, settings) ? { change: returningChange(snapshots, settings, now) } : null;
+  const pastMax = isPastMax(age, settings) ? { change: returningChange(listing, snapshots, settings, now) } : null;
   return compose(listing, age, dropFacts(listing, snapshots, settings), SINGLE, pastMax);
 }
 
@@ -231,7 +236,7 @@ export function evaluateGroup(target: ListingRecord, members: GroupMember[], set
   const oldest = ages.reduce((best, a) => (days(a) > days(best) ? a : best));
   if (isPastMax(oldest, settings)) {
     const change = live
-      .map((m) => returningChange(m.prices, settings, now))
+      .map((m) => returningChange(m.listing, m.prices, settings, now))
       .reduce<PriceChange | null>((best, c) => (c && (!best || c.knownAt > best.knownAt) ? c : best), null);
     const drop = live.map((m) => dropFacts(m.listing, m.prices, settings)).reduce((best, d) => (d.dropPercent > best.dropPercent ? d : best));
     return compose(target, oldest, drop, group, { change });
