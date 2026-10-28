@@ -69,3 +69,24 @@ describe('giro automatico', () => {
     expect(await r.json()).toEqual({ error: 'Frequenza del giro automatico non valida' });
   });
 });
+
+describe('online al massimo', () => {
+  it('nessun limite di default, si imposta e si toglie', async () => {
+    expect((await get()).maxAgeDays).toBeNull();
+    expect((await put({ maxAgeDays: 730 })).status).toBe(200);
+    expect(await get()).toEqual({ ...DEFAULT_AGENT_SETTINGS, maxAgeDays: 730 });
+    await put({ maxAgeDays: null });
+    expect((await get()).maxAgeDays).toBeNull();
+  });
+
+  it('deve essere più del minimo', async () => {
+    const r = await put({ maxAgeDays: 100 });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({ error: 'Online al massimo deve essere più del minimo' });
+    await put({ maxAgeDays: 730 });
+    const r2 = await put({ minAgeDays: 800 });
+    expect(r2.status).toBe(400);
+    expect(await r2.json()).toEqual({ error: 'Online al massimo deve essere più del minimo' });
+    expect(await get()).toEqual({ ...DEFAULT_AGENT_SETTINGS, maxAgeDays: 730 });
+  });
+});

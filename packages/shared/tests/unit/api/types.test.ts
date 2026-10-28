@@ -42,6 +42,8 @@ describe('impostazioni e lead', () => {
   it('impostazioni dell\'agente', () => {
     for (const v of [0, 3651, 1.5]) expect(msg(AgentSettingsBody.safeParse({ minAgeDays: v }))).toBe('Soglia giorni non valida');
     for (const v of [-1, 101]) expect(msg(AgentSettingsBody.safeParse({ minDropPercent: v }))).toBe('Ribasso minimo non valido');
+    for (const v of [0, 3651, 1.5]) expect(msg(AgentSettingsBody.safeParse({ maxAgeDays: v }))).toBe('Soglia massima non valida');
+    expect(AgentSettingsBody.parse({ maxAgeDays: null })).toEqual({ maxAgeDays: null });
     expect(msg(AgentSettingsBody.safeParse({ categories: [] }))).toBe('Scegli almeno una categoria');
     expect(AgentSettingsBody.safeParse({ categories: ['castelli'] }).success).toBe(false);
     expect(AgentSettingsBody.parse({ enabledPortals: { subito: false } })).toEqual({ enabledPortals: { subito: false } });
