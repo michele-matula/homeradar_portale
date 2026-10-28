@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { AgentSettings, Me } from '@homeradar/shared/api/types';
 import { AUTO_SWEEP_HOURS, type AutoSweepHours } from '@homeradar/shared/core/auto-sweep';
-import { UNCERTAINTY_DAYS } from '@homeradar/shared/core/rules';
+import { RECENT_CHANGE_DAYS, UNCERTAINTY_DAYS } from '@homeradar/shared/core/rules';
 import { CATEGORY_LABELS, PORTAL_SITES, PORTALS, PROPERTY_CATEGORIES, type Portal, type PropertyCategory } from '@homeradar/shared/shared/types';
 import { api, errorText } from '../api';
 import { chromeConnector, type ConnectorPort } from '../connector';
@@ -16,6 +16,10 @@ const AGE_HELP: ReactNode = (
     più maturi, abbassala per averne di più.
   </>
 );
+const MAX_AGE_HELP =
+  'Gli annunci online da più di questi giorni non sono lead: chi vende da anni senza risultati difficilmente risponde. Tornano in lista, ' +
+  `come nuovi, se cambiano prezzo: per ${RECENT_CHANGE_DAYS} giorni dopo un rialzo o un ribasso di almeno la percentuale qui sotto. ` +
+  'Vuoto = nessun limite.';
 const DROP_HELP =
   'Un annuncio diventa lead anche quando il prezzo è sceso almeno di questa percentuale rispetto al prezzo più alto visto. Con 0 conta ' +
   'qualsiasi ribasso. I ribassi emergono confrontando i prezzi dei giri nel tempo (su Immobiliare e Idealista anche dal ribasso indicato ' +
@@ -25,6 +29,7 @@ const DROP_HELP =
 function changes(saved: AgentSettings, draft: AgentSettings): Partial<AgentSettings> {
   const out: Partial<AgentSettings> = {};
   if (draft.minAgeDays !== saved.minAgeDays) out.minAgeDays = draft.minAgeDays;
+  if (draft.maxAgeDays !== saved.maxAgeDays) out.maxAgeDays = draft.maxAgeDays;
   if (draft.minDropPercent !== saved.minDropPercent) out.minDropPercent = draft.minDropPercent;
   const cats = PROPERTY_CATEGORIES.filter((c) => draft.categories.includes(c));
   if (cats.join() !== PROPERTY_CATEGORIES.filter((c) => saved.categories.includes(c)).join()) out.categories = cats;
@@ -106,6 +111,14 @@ export function Settings({ me, onSignOut, connector = chromeConnector }: { me: M
                 <input type="number" min={1} max={3650} step={1} value={Number.isNaN(draft.minAgeDays) ? '' : draft.minAgeDays} onChange={(e) => edit({ minAgeDays: e.target.valueAsNumber })} />
               </label>
               <InfoTip label="Online da almeno">{AGE_HELP}</InfoTip>
+            </div>
+            <div className="settings__row">
+              <label className="settings__field">
+                <span>Online al massimo (giorni)</span>
+                {/* Vuoto = nessun limite: NaN diventa null, non un errore come negli altri campi. */}
+                <input type="number" min={1} max={3650} step={1} value={draft.maxAgeDays ?? ''} onChange={(e) => edit({ maxAgeDays: Number.isNaN(e.target.valueAsNumber) ? null : e.target.valueAsNumber })} />
+              </label>
+              <InfoTip label="Online al massimo">{MAX_AGE_HELP}</InfoTip>
             </div>
             <div className="settings__row">
               <label className="settings__field">

@@ -135,3 +135,39 @@ describe('giro automatico', () => {
     expect(sent).toEqual([]);
   });
 });
+
+describe('online al massimo', () => {
+  const field = () => screen.findByRole('spinbutton', { name: 'Online al massimo (giorni)' }) as Promise<HTMLInputElement>;
+  const echo = (b: unknown) => ({ status: 200, body: { ...DEFAULT_AGENT_SETTINGS, ...(b as object) } });
+
+  it('vuoto senza limite; un numero si salva', async () => {
+    const calls = mockApi(routes({ 'PUT /api/settings': echo }));
+    renderAt('/impostazioni');
+    const max = await field();
+    expect(max.value).toBe('');
+    fireEvent.change(max, { target: { value: '730' } });
+    fireEvent.click(save());
+    expect(await screen.findByText('Impostazioni salvate')).toBeTruthy();
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ maxAgeDays: 730 });
+  });
+
+  it('svuotarlo toglie il limite, non è un errore', async () => {
+    const calls = mockApi(routes({
+      'GET /api/settings': { status: 200, body: { ...DEFAULT_AGENT_SETTINGS, maxAgeDays: 730 } },
+      'PUT /api/settings': echo,
+    }));
+    renderAt('/impostazioni');
+    fireEvent.change(await field(), { target: { value: '' } });
+    fireEvent.click(save());
+    expect(await screen.findByText('Impostazioni salvate')).toBeTruthy();
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ maxAgeDays: null });
+  });
+
+  it("l'errore del server si vede", async () => {
+    mockApi(routes({ 'PUT /api/settings': { status: 400, body: { error: 'Online al massimo deve essere più del minimo' } } }));
+    renderAt('/impostazioni');
+    fireEvent.change(await field(), { target: { value: '100' } });
+    fireEvent.click(save());
+    expect((await screen.findByRole('alert')).textContent).toBe('Online al massimo deve essere più del minimo');
+  });
+});
