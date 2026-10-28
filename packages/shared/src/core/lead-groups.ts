@@ -130,9 +130,16 @@ export function buildLeadViews({ listings, states, snapshots, splits }: Archive,
   });
 }
 
-/** Lead nuovo: tutto il gruppo visto da `since` (visita precedente della lista o inizio di un giro). Un immobile già noto, ripubblicato o comparso su un altro portale, non lo è. */
+/**
+ * Lead nuovo: tutto il gruppo visto da `since` (visita precedente della lista o inizio di un giro). Un immobile già noto,
+ * ripubblicato o comparso su un altro portale, non lo è. Lo è invece un immobile oltre «online al massimo» rientrato da
+ * `since` per un cambio di prezzo, se l'agente non l'aveva lavorato (in quel caso non è mai uscito dalla lista).
+ */
 export function isNewLead(v: LeadView, since: number | null): boolean {
-  return since != null && Math.min(v.listing.firstSeenAt, ...v.others.map((o) => o.listing.firstSeenAt)) >= since;
+  if (since == null) return false;
+  if (Math.min(v.listing.firstSeenAt, ...v.others.map((o) => o.listing.firstSeenAt)) >= since) return true;
+  const { returnedAt } = v.evaluation;
+  return returnedAt != null && returnedAt >= since && v.state.status === 'new' && v.state.recallAt == null;
 }
 
 /** Un lead si mostra se ha segnali, è già stato lavorato o ha un richiamo: l'icona lo conta. */
