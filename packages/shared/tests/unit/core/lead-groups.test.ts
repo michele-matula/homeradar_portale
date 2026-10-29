@@ -193,7 +193,12 @@ describe('isHidden', () => {
 describe('isNewLead', () => {
   const T = 1_000_000;
   const view = (main: number, others: number[] = []) =>
-    ({ listing: rec('immobiliare', 1, { firstSeenAt: main }), others: others.map((f, i) => ({ listing: rec('idealista', i + 2, { firstSeenAt: f }) })) }) as unknown as LeadView;
+    ({
+      listing: rec('immobiliare', 1, { firstSeenAt: main }),
+      others: others.map((f, i) => ({ listing: rec('idealista', i + 2, { firstSeenAt: f }) })),
+      evaluation: { returnedAt: null },
+      state: state('immobiliare:1'),
+    }) as unknown as LeadView;
 
   it('nuovo se tutto il gruppo è visto dopo l\'inizio del giro', () => {
     expect(isNewLead(view(T), T)).toBe(true);
@@ -207,5 +212,42 @@ describe('isNewLead', () => {
 
   it('senza giro nessun nuovo', () => {
     expect(isNewLead(view(T), null)).toBe(false);
+  });
+});
+
+describe('isNewLead: rientro oltre il massimo', () => {
+  const T = 1_000_000;
+  const view = (returnedAt: number | null, o: Partial<LeadState> = {}) =>
+    ({
+      listing: rec('immobiliare', 1, { firstSeenAt: T - 100 }),
+      others: [],
+      evaluation: { returnedAt },
+      state: state('immobiliare:1', o),
+    }) as unknown as LeadView;
+
+  it('rientrato dopo la visita: nuovo', () => {
+    expect(isNewLead(view(T + 5), T)).toBe(true);
+  });
+
+  it('rientrato prima della visita: non nuovo', () => {
+    expect(isNewLead(view(T - 1), T)).toBe(false);
+  });
+
+  it('già lavorato: non nuovo, perché non è mai uscito', () => {
+    expect(isNewLead(view(T + 5, { status: 'contacted' }), T)).toBe(false);
+    expect(isNewLead(view(T + 5, { recallAt: 5 }), T)).toBe(false);
+  });
+
+  it('senza visita nessun nuovo', () => {
+    expect(isNewLead(view(T + 5), null)).toBe(false);
+  });
+
+  it('oltre il massimo e senza cambi: in lista solo se lavorato', () => {
+    const old = rec('immobiliare', 1, { portalCreatedAt: NOW - 400 * DAY_MS });
+    const settings = { ...DEFAULT_SETTINGS, maxAgeDays: 365 };
+    const [worked] = buildLeadViews(archive([old], [state(old.key, { status: 'contacted' })]), settings, NOW);
+    expect(isListed(worked!)).toBe(true);
+    const [untouched] = buildLeadViews(archive([old]), settings, NOW);
+    expect(isListed(untouched!)).toBe(false);
   });
 });

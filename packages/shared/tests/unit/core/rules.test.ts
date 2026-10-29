@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluate, evaluateGroup } from '@/core/rules';
+import { evaluate, evaluateGroup, priceChanges } from '@/core/rules';
 import { DAY_MS, DEFAULT_SETTINGS, type ListingRecord, type PriceSnapshot } from '@/shared/types';
 
 const NOW = Date.UTC(2026, 9, 10, 12);
@@ -215,5 +215,115 @@ describe('evaluateGroup', () => {
     const head = listing({ key: 'immobiliare:2', portalId: 2, portalCreatedAt: daysAgo(5) });
     const e = evaluateGroup(head, [{ listing: head, prices: [] }, { listing: before, prices: [], previous: true }], DEFAULT_SETTINGS, NOW);
     expect(e.badgeText).toBe('Privato · 10 gg · ripubblicato');
+  });
+});
+
+describe('priceChanges', () => {
+  const t = (d: number) => daysAgo(d);
+
+  it('solo osservati: il primo snapshot non è un cambio', () => {
+    expect(priceChanges([snap(100, t(30)), snap(100, t(20)), snap(110, t(10))])).toEqual([{ from: 100, to: 110, date: t(10), knownAt: t(10) }]);
+  });
+
+  it('il prezzo «prima» di un ribasso dichiarato dopo un osservato non è un rialzo', () => {
+    const d = t(5);
+    expect(priceChanges([snap(100, t(10)), snap(130, d - 1, 'declared'), snap(100, d, 'declared')])).toEqual([]);
+  });
+
+  it('ribasso osservato e poi dichiarato: un solo cambio, con la data dichiarata', () => {
+    const d = t(8);
+    const changes = priceChanges([snap(120, t(10)), snap(100, t(5)), snap(120, d - 1, 'declared'), snap(100, d, 'declared')]);
+    expect(changes).toEqual([{ from: 120, to: 100, date: d, knownAt: t(5) }]);
+  });
+
+  it('ribasso dichiarato alla prima osservazione: è un cambio', () => {
+    const d = t(8);
+    expect(priceChanges([snap(120, d - 1, 'declared'), snap(100, d, 'declared'), snap(100, t(1))])).toEqual([{ from: 120, to: 100, date: d, knownAt: t(1) }]);
+  });
+});
+
+describe('online al massimo', () => {
+  const MAX = { ...DEFAULT_SETTINGS, maxAgeDays: 365 };
+  const old = listing({ portalCreatedAt: daysAgo(400) });
+
+  it('senza massimo non cambia niente', () => {
+    const e = ev(listing({ portalCreatedAt: daysAgo(5000) }));
+    expect(e.priority).toBe('medium');
+    expect(e.returnedAt).toBeNull();
+  });
+
+  it('oltre il massimo senza cambi: nessuna priorità', () => {
+    expect(ev(old, [], MAX).priority).toBe('none');
+  });
+
+  it("dentro l'intervallo: come oggi", () => {
+    expect(ev(listing({ portalCreatedAt: daysAgo(200) }), [], MAX).priority).toBe('medium');
+  });
+
+  it('rialzo recente di qualsiasi importo: Media e rientro', () => {
+    const e = ev(listing({ portalCreatedAt: daysAgo(400), currentPrice: 236000 }), [snap(235000, daysAgo(20)), snap(236000, daysAgo(10))], MAX);
+    expect(e.priority).toBe('medium');
+    expect(e.returnedAt).toBe(daysAgo(10));
+    expect(e.reasons.some((r) => r.startsWith('Prezzo alzato del'))).toBe(true);
+    expect(e.badgeText).toContain('+0,4%');
+  });
+
+  it('rialzo di 31 giorni fa: nascosto', () => {
+    const e = ev(listing({ portalCreatedAt: daysAgo(400), currentPrice: 236000 }), [snap(235000, daysAgo(40)), snap(236000, daysAgo(31))], MAX);
+    expect(e.priority).toBe('none');
+    expect(e.returnedAt).toBeNull();
+  });
+
+  it('ribasso recente: conta solo sopra la soglia, e mai Alta', () => {
+    const prices = [snap(247000, daysAgo(20)), snap(235000, daysAgo(10))]; // −4,9%
+    expect(ev(old, prices, { ...MAX, minDropPercent: 10 }).priority).toBe('none');
+    const e = ev(old, prices, { ...MAX, minDropPercent: 3 });
+    expect(e.priority).toBe('medium');
+    expect(e.reasons.some((r) => r.startsWith('Ribassato del 4,9%'))).toBe(true);
+  });
+
+  it('un ribasso storico non tiene in lista', () => {
+    const d = daysAgo(730);
+    const e = ev(listing({ portalCreatedAt: daysAgo(1000), lastDrop: { ...lastDrop, date: d } }), [snap(249000, d - 1, 'declared'), snap(235000, d, 'declared'), snap(235000, daysAgo(700))], MAX);
+    expect(e.priority).toBe('none');
+  });
+
+  it('ribasso dichiarato di 40 giorni fa visto ieri per la prima volta: nascosto', () => {
+    const d = daysAgo(40);
+    const e = ev(listing({ portalCreatedAt: daysAgo(400), lastDrop: { ...lastDrop, date: d } }), [snap(249000, d - 1, 'declared'), snap(235000, d, 'declared'), snap(235000, daysAgo(1))], MAX);
+    expect(e.priority).toBe('none');
+  });
+
+  it('Idealista: un ribasso senza data visto alla prima osservazione non fa rientrare', () => {
+    const today = Date.UTC(2026, 9, 10);
+    const idea = listing({
+      key: 'idealista:1', portal: 'idealista', estimatedCreatedAt: daysAgo(2000),
+      lastDrop: { ...lastDrop, date: today, dateEstimated: true }, firstSeenAt: daysAgo(0),
+    });
+    const prices = [snap(249000, today - 1, 'declared'), snap(235000, today, 'declared'), snap(235000, daysAgo(0))];
+    expect(ev(idea, prices, MAX).priority).toBe('none');
+  });
+
+  it('ripubblicazione di un immobile oltre il massimo: resta oltre il massimo', () => {
+    const before = listing({ portalCreatedAt: daysAgo(400), currentPrice: 270000 });
+    const head = listing({ key: 'immobiliare:2', portalId: 2, portalCreatedAt: daysAgo(20), currentPrice: 270000 });
+    const beforePrices = [snap(300000, daysAgo(400)), snap(270000, daysAgo(200))];
+    const chain = [...beforePrices, snap(270000, daysAgo(20))];
+    const group = (prices: PriceSnapshot[]) =>
+      evaluateGroup(head, [{ listing: head, prices }, { listing: before, prices: beforePrices, previous: true }], MAX, NOW);
+    expect(group(chain).priority).toBe('none');
+    const risen = group([...chain, snap(275000, daysAgo(5))]);
+    expect(risen.priority).toBe('medium');
+    expect(risen.returnedAt).toBe(daysAgo(5));
+  });
+
+  it('gruppo: il rientro è il cambio più recente tra i membri vivi', () => {
+    const a = listing({ portalCreatedAt: daysAgo(400) });
+    const b = listing({ key: 'idealista:2', portal: 'idealista', portalId: 2, estimatedCreatedAt: daysAgo(500) });
+    const pa = [snap(230000, daysAgo(20)), snap(235000, daysAgo(10))];
+    const pb = [snap(230000, daysAgo(20)), { ...snap(235000, daysAgo(3)), listingKey: 'idealista:2' }];
+    const e = evaluateGroup(a, [{ listing: a, prices: pa }, { listing: b, prices: pb }], MAX, NOW);
+    expect(e.priority).toBe('medium');
+    expect(e.returnedAt).toBe(daysAgo(3));
   });
 });

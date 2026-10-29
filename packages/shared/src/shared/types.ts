@@ -286,6 +286,8 @@ export interface Evaluation {
   maxKnownPrice: number | null;
   reasons: string[];
   badgeText: string;
+  /** Oltre «online al massimo»: quando HomeRadar ha saputo del cambio di prezzo che lo fa rientrare; null altrimenti. */
+  returnedAt: number | null;
 }
 
 /** Confronto del €/m² di un lead con la mediana dei privati visti nella stessa zona o città. Calcolato, mai salvato. */

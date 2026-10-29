@@ -50,6 +50,14 @@ describe('GET /api/leads', () => {
     expect(keys(await leads(a.cookie))).toEqual([old.key]);
   });
 
+  it('oltre «online al massimo» e senza cambi di prezzo: fuori', async () => {
+    const a = await agent();
+    const old = await putListing({ portal: 'immobiliare', portalId: 1, portalCreatedAt: Date.now() - 400 * DAY });
+    expect(keys(await leads(a.cookie))).toEqual([old.key]);
+    await fetchApi('PUT', '/api/settings', { maxAgeDays: 365 }, { Cookie: a.cookie });
+    expect(keys(await leads(a.cookie))).toEqual([]);
+  });
+
   it('stati, note e separazioni di un agente non arrivano all\'altro', async () => {
     const a = await agent();
     const b = await agent();

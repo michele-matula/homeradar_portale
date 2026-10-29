@@ -78,6 +78,8 @@ export const UpdateUserBody = body({
 /** Impostazioni private dell'agente: soglie della priorità, categorie e portali del giro. I comuni li assegna l'admin. */
 export interface AgentSettings {
   minAgeDays: number;
+  /** Online al massimo (giorni): oltre, un immobile rientra solo se cambia prezzo. null = nessun limite. */
+  maxAgeDays: number | null;
   minDropPercent: number;
   categories: PropertyCategory[];
   enabledPortals: Record<Portal, boolean>;
@@ -89,6 +91,7 @@ export interface AgentSettings {
 
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   minAgeDays: DEFAULT_SETTINGS.minAgeDays,
+  maxAgeDays: null,
   minDropPercent: DEFAULT_SETTINGS.minDropPercent,
   categories: DEFAULT_SETTINGS.searchArea.categories,
   enabledPortals: DEFAULT_SETTINGS.enabledPortals,
@@ -97,11 +100,13 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
 };
 
 const AGE_ERROR = { error: 'Soglia giorni non valida' };
+const MAX_AGE_ERROR = { error: 'Soglia massima non valida' };
 const DROP_ERROR = { error: 'Ribasso minimo non valido' };
 const PORTALS_ERROR = { error: 'Portali attivi non validi' };
 const AUTO_ERROR = { error: 'Frequenza del giro automatico non valida' };
 export const AgentSettingsBody = body({
   minAgeDays: z.number(AGE_ERROR).int(AGE_ERROR).min(1, AGE_ERROR).max(3650, AGE_ERROR).optional(),
+  maxAgeDays: z.number(MAX_AGE_ERROR).int(MAX_AGE_ERROR).min(1, MAX_AGE_ERROR).max(3650, MAX_AGE_ERROR).nullable().optional(),
   minDropPercent: z.number(DROP_ERROR).min(0, DROP_ERROR).max(100, DROP_ERROR).optional(),
   categories: z
     .array(z.enum(PROPERTY_CATEGORIES, { error: 'Categoria non valida' }), { error: 'Categorie non valide' })

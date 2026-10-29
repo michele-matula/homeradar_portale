@@ -4,6 +4,7 @@ import { PORTALS, type Portal } from '@homeradar/shared/shared/types';
 
 interface DbSettings {
   min_age_days: number;
+  max_age_days: number | null;
   min_drop_percent: number;
   categories: string;
   enabled_portals: string;
@@ -17,6 +18,7 @@ export async function getSettings(db: D1Database, userId: string): Promise<Agent
   if (!r) return { ...DEFAULT_AGENT_SETTINGS, enabledPortals: { ...DEFAULT_AGENT_SETTINGS.enabledPortals } };
   return {
     minAgeDays: r.min_age_days,
+    maxAgeDays: r.max_age_days,
     minDropPercent: r.min_drop_percent,
     categories: JSON.parse(r.categories),
     enabledPortals: { ...DEFAULT_AGENT_SETTINGS.enabledPortals, ...JSON.parse(r.enabled_portals) },
@@ -32,13 +34,14 @@ export async function saveSettings(db: D1Database, userId: string, patch: Settin
   const cur = await getSettings(db, userId);
   const s: AgentSettings = { ...cur, ...patch, enabledPortals: { ...cur.enabledPortals, ...patch.enabledPortals } };
   if (!PORTALS.some((p) => s.enabledPortals[p])) return 'Attiva almeno un portale';
+  if (s.maxAgeDays != null && s.maxAgeDays <= s.minAgeDays) return 'Online al massimo deve essere più del minimo';
   await db
-    .prepare(`INSERT INTO user_settings (user_id, min_age_days, min_drop_percent, categories, enabled_portals, auto_sweep, auto_sweep_hours, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(user_id) DO UPDATE SET min_age_days = excluded.min_age_days, min_drop_percent = excluded.min_drop_percent,
-      categories = excluded.categories, enabled_portals = excluded.enabled_portals, auto_sweep = excluded.auto_sweep,
-      auto_sweep_hours = excluded.auto_sweep_hours, updated_at = excluded.updated_at`)
-    .bind(userId, s.minAgeDays, s.minDropPercent, JSON.stringify(s.categories), JSON.stringify(s.enabledPortals), s.autoSweep ? 1 : 0, s.autoSweepHours, now)
+    .prepare(`INSERT INTO user_settings (user_id, min_age_days, max_age_days, min_drop_percent, categories, enabled_portals, auto_sweep, auto_sweep_hours, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET min_age_days = excluded.min_age_days, max_age_days = excluded.max_age_days,
+      min_drop_percent = excluded.min_drop_percent, categories = excluded.categories, enabled_portals = excluded.enabled_portals,
+      auto_sweep = excluded.auto_sweep, auto_sweep_hours = excluded.auto_sweep_hours, updated_at = excluded.updated_at`)
+    .bind(userId, s.minAgeDays, s.maxAgeDays, s.minDropPercent, JSON.stringify(s.categories), JSON.stringify(s.enabledPortals), s.autoSweep ? 1 : 0, s.autoSweepHours, now)
     .run();
   return s;
 }
