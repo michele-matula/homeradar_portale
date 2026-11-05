@@ -8,5 +8,7 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['test/**/*.test.{ts,tsx}'],
     setupFiles: ['test/setup.ts'],
+    // Più ampio delle attese di Testing Library (4 s in test/setup.ts): un test lento fallisce sull'attesa, con il suo messaggio.
+    testTimeout: 10_000,
   },
 });

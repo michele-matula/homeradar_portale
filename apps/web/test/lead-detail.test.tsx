@@ -104,13 +104,18 @@ describe('scheda del lead', () => {
     expect(calls.find((c) => c.method === 'POST' && c.path === '/api/leads/split')?.body).toEqual({ key: 'idealista:2', fromKeys: ['immobiliare:1'] });
   });
 
-  /** Come `mockApi`, ma le PATCH e le POST rispondono quando il test le libera (in ordine di partenza). */
+  /**
+   * Come `mockApi`, ma le PATCH e le POST rispondono quando il test le libera (in ordine di partenza).
+   * Le segnalazioni d'errore non contano: `src/errors.ts` le manda un secondo dopo, e con il PC lento quella di un test
+   * precedente (un 500 simulato) arriva durante questo.
+   */
   function slowWrites(): { bodies: unknown[]; release(i: number, status: number, body?: unknown): Promise<void> } {
     const base = routes();
     const bodies: unknown[] = [];
     const waiting: ((r: Response) => void)[] = [];
     vi.stubGlobal('fetch', (input: string, init: RequestInit = {}) => {
       const method = init.method ?? 'GET';
+      if (input === '/api/errors') return Promise.resolve(new Response(null, { status: 204 }));
       if (method === 'GET') {
         const r = base[`GET ${input}`] as { status: number; body?: unknown };
         return Promise.resolve(new Response(JSON.stringify(r.body), { status: r.status, headers: { 'Content-Type': 'application/json' } }));
@@ -246,7 +251,7 @@ describe('scheda del lead', () => {
     localStorage.setItem('homeradar.sortByTab', JSON.stringify({ new: 'price_asc' }));
     renderAt('/lead/immobiliare%3A1');
     const dialog = await screen.findByRole('dialog', { name: 'Scheda del lead' });
-    expect(within(dialog).queryByText(/^Lead d+ di/)).toBeNull();
+    expect(within(dialog).queryByText(/^Lead \d+ di/)).toBeNull();
   });
 
   it('prezzo al metro quadro e NUOVO', async () => {
