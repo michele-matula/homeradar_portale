@@ -37,11 +37,80 @@ a { color: var(--brand); }
   background: linear-gradient(135deg, var(--brand) 0%, var(--brand-strong) 100%);
   box-shadow: 0 2px 8px rgba(10, 58, 71, 0.25);
 }
-.brand { color: #fff; text-decoration: none; }
+.brand { display: inline-flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; }
+.brand__logo { display: block; flex: none; }
 .brand__name { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
 .topbar__nav { display: flex; align-items: center; gap: 14px; }
 .topbar__nav a { color: #fff; font-weight: 500; }
-.content { width: 100%; max-width: 960px; margin: 0 auto; padding: 20px 16px 40px; }
+.content { flex: 1; width: 100%; max-width: 960px; margin: 0 auto; padding: 20px 16px 40px; }
+
+/* Utente collegato nella barra in alto */
+.account { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; padding-left: 14px; border-left: 1px solid rgba(255, 255, 255, 0.25); }
+.account__avatar {
+  flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18); color: #fff; font-size: 13px; font-weight: 700; cursor: default;
+}
+.account__email { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; opacity: 0.92; }
+
+/* Piè di pagina */
+.footer {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px;
+  padding: 14px 24px; font-size: 13px; color: var(--muted); background: var(--surface); border-top: 1px solid var(--border);
+}
+.footer__links { display: flex; flex-wrap: wrap; gap: 16px; }
+.footer a { text-decoration: none; }
+.footer a:hover { text-decoration: underline; }
+
+/* Pagina di accesso: presentazione a sinistra, modulo a destra (sotto i 900 px uno sopra l'altro). */
+.login { background: var(--surface); }
+.login__main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.login__intro {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; padding: 48px 56px; color: #fff;
+  background: linear-gradient(150deg, var(--brand) 0%, var(--brand-strong) 100%);
+}
+/* Cerchi del radar sullo sfondo */
+.login__intro::after {
+  content: ''; position: absolute; right: -140px; bottom: -140px; width: 380px; height: 380px; border-radius: 50%; pointer-events: none;
+  border: 2px solid rgba(255, 255, 255, 0.08); box-shadow: 0 0 0 55px rgba(255, 255, 255, 0.03), 0 0 0 110px rgba(255, 255, 255, 0.02);
+}
+.login__brand { display: flex; align-items: center; gap: 14px; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.login__brand img { flex: none; filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.25)); }
+.login__claim { max-width: 380px; margin: auto 0 0; font-size: 30px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
+.login__points { list-style: none; display: flex; flex-direction: column; gap: 12px; margin: 24px 0 auto; padding: 0; }
+.login__points li { display: flex; gap: 12px; align-items: center; }
+.login__points li::before {
+  content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; background: #f5b335; box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.12);
+}
+.login__side { display: flex; align-items: center; justify-content: center; padding: 40px 24px; }
+.login__form { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 6px; }
+.login__form h1 { margin: 0; font-size: 24px; }
+.login__lead { margin: 0 0 6px; color: var(--muted); font-size: 14px; }
+.login__form label { font-weight: 500; margin-top: 8px; }
+.login__form .btn { margin-top: 14px; min-height: 44px; }
+@media (max-width: 899px) {
+  .login__main { grid-template-columns: minmax(0, 1fr); }
+  .login__intro { padding: 24px 20px; }
+  .login__intro::after { display: none; }
+  .login__brand { font-size: 21px; }
+  .login__brand img { width: 44px; height: 44px; }
+  .login__claim { margin-top: 14px; font-size: 18px; font-weight: 600; }
+  .login__points { display: none; }
+  .login__side { align-items: flex-start; padding: 28px 20px 40px; }
+}
+@media (max-width: 599px) {
+  /* Con i link dell'admin la barra non sta in una riga: va a capo invece di allargare la pagina. */
+  .topbar, .topbar__nav { flex-wrap: wrap; }
+  .topbar__nav { row-gap: 6px; }
+  /* L'email si apre sotto la barra, allineata al suo bordo destro (la barra è il riferimento: è sticky). */
+  .account { position: static; padding-left: 0; border-left: 0; }
+  .account__avatar { cursor: pointer; }
+  .account__email { display: none; }
+  .account--open .account__email {
+    display: block; position: absolute; top: calc(100% + 6px); right: 16px; z-index: 3; max-width: calc(100vw - 32px); padding: 8px 12px;
+    border-radius: var(--radius-sm); background: var(--surface); color: var(--text); opacity: 1; box-shadow: var(--shadow-hover);
+  }
+  .footer { padding: 12px 16px; }
+}
 
 /* Schede e moduli */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px; }

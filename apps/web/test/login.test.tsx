@@ -48,6 +48,21 @@ describe('accesso', () => {
     expect(calls.some((c) => c.method === 'POST' && c.path === '/api/logout')).toBe(true);
   });
 
+  it('la barra in alto mostra l\'email dell\'utente collegato', async () => {
+    mockApi({ 'GET /api/me': { status: 200, body: { user: AGENT } } });
+    renderAt('/');
+    expect(await screen.findByText('mario@rossi.it')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Account: mario@rossi.it' }).textContent).toBe('M');
+  });
+
+  it('la pagina di accesso ha informativa e assistenza nel piè di pagina', async () => {
+    mockApi({ 'GET /api/me': NOT_LOGGED });
+    renderAt('/accedi');
+    await screen.findByRole('button', { name: 'Accedi' });
+    expect(screen.getByRole('link', { name: 'Informativa privacy' }).getAttribute('href')).toBe('/informativa');
+    expect(screen.getByRole('link', { name: 'Assistenza' }).getAttribute('href')).toBe('mailto:matulamichele+homeradar@gmail.com');
+  });
+
   it('l\'agente non vede il link Utenti', async () => {
     mockApi({ 'GET /api/me': { status: 200, body: { user: AGENT } } });
     renderAt('/');
