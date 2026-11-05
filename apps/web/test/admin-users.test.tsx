@@ -15,7 +15,8 @@ const base = (users: unknown[] = [ADMIN_ROW, LUCA]) => ({
   'GET /api/admin/users': { status: 200, body: { users } },
 });
 
-const row = async (email: string) => (await screen.findByText(email)).closest('li')!;
+// Dentro <main>: l'email dell'utente collegato compare anche nella barra in alto.
+const row = async (email: string) => (await within(await screen.findByRole('main')).findByText(email)).closest('li')!;
 
 describe('admin utenti', () => {
   it('crea un agente e mostra il link da copiare', async () => {
