@@ -197,6 +197,7 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: none; box-
 .device__top, .device__bottom { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
 .device__remote { display: inline-flex; align-items: center; gap: 6px; }
 .device__rename { max-width: 220px; }
+.device__rename-row { display: inline-flex; align-items: center; gap: 6px; }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--muted); vertical-align: middle; }
 .dot--on { background: var(--ok); }
 .device:first-child { border-top: 0; }

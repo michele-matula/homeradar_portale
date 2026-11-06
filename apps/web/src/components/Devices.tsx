@@ -52,9 +52,12 @@ export function Devices({ reload = 0, connector = chromeConnector }: {
       // Il connettore di questo computer controlla subito, senza aspettare il suo allarme.
       if (d.id === here) void connector.send({ type: 'remoteChanged' }).catch(() => {});
     });
-  function rename(id: string, value: string): void {
+  /** Salva il nome (vuoto = torna al nome automatico); se non è cambiato chiude e basta. */
+  function rename(d: DeviceInfo, value: string): void {
     setRenaming(null);
-    void act(() => api('PATCH', `/api/devices/${id}`, { label: value.trim() || null }));
+    const label = value.trim() || null;
+    if (label === d.label || (label === d.name && d.label === null)) return;
+    void act(() => api('PATCH', `/api/devices/${d.id}`, { label }));
   }
 
   if (!devices.length && !error) return null;
@@ -75,18 +78,31 @@ export function Devices({ reload = 0, connector = chromeConnector }: {
                 <span>
                   {d.remote && d.remoteReady && <span className={d.online ? 'dot dot--on' : 'dot'} aria-hidden="true" />}
                   {renaming?.id === d.id ? (
-                    <input
-                      aria-label="Nuovo nome"
-                      className="device__rename"
-                      autoFocus
-                      maxLength={60}
-                      value={renaming.value}
-                      onChange={(e) => setRenaming({ id: d.id, value: e.target.value })}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') rename(d.id, renaming.value);
-                        if (e.key === 'Escape') setRenaming(null);
-                      }}
-                    />
+                    // Si salva con Invio, con «Salva» o uscendo dal campo (sul telefono non c'è un Invio evidente).
+                    <span className="device__rename-row">
+                      <input
+                        aria-label="Nuovo nome"
+                        className="device__rename"
+                        autoFocus
+                        maxLength={60}
+                        value={renaming.value}
+                        onChange={(e) => setRenaming({ id: d.id, value: e.target.value })}
+                        onBlur={() => rename(d, renaming.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') rename(d, renaming.value);
+                          if (e.key === 'Escape') setRenaming(null);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn--small btn--primary"
+                        // Il campo non perde il focus prima del clic: un solo salvataggio.
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => rename(d, renaming.value)}
+                      >
+                        Salva
+                      </button>
+                    </span>
                   ) : (
                     <strong>{shown}</strong>
                   )}

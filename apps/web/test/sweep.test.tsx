@@ -298,9 +298,13 @@ describe('computer collegati', () => {
   });
 
   it('rinomina; vuoto torna al nome automatico', async () => {
+    let list = [PC];
     const calls = mockApi({
-      'GET /api/devices': { status: 200, body: [PC] },
-      'PATCH /api/devices/d1': { status: 200, body: PC },
+      'GET /api/devices': () => ({ status: 200, body: list }),
+      'PATCH /api/devices/d1': (b) => {
+        list = [{ ...PC, ...(b as object) }];
+        return { status: 200, body: list[0] };
+      },
     });
     render(<Devices connector={absent()} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Rinomina' }));
@@ -315,6 +319,35 @@ describe('computer collegati', () => {
     fireEvent.keyDown(again, { key: 'Enter' });
     await vi.waitFor(() => expect(calls.filter((x) => x.method === 'PATCH')).toHaveLength(2));
     expect(calls.filter((x) => x.method === 'PATCH')[1]!.body).toEqual({ label: null });
+  });
+
+  it('rinomina: si salva anche col bottone Salva', async () => {
+    const calls = mockApi({ 'GET /api/devices': { status: 200, body: [PC] }, 'PATCH /api/devices/d1': { status: 200, body: PC } });
+    render(<Devices connector={absent()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rinomina' }));
+    fireEvent.change(screen.getByLabelText('Nuovo nome'), { target: { value: 'PC di casa' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salva' }));
+    await vi.waitFor(() => expect(calls.find((x) => x.method === 'PATCH')?.body).toEqual({ label: 'PC di casa' }));
+  });
+
+  it('rinomina: uscendo dal campo si salva, senza doppio invio', async () => {
+    const calls = mockApi({ 'GET /api/devices': { status: 200, body: [PC] }, 'PATCH /api/devices/d1': { status: 200, body: PC } });
+    render(<Devices connector={absent()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rinomina' }));
+    const input = screen.getByLabelText('Nuovo nome');
+    fireEvent.change(input, { target: { value: 'PC ufficio' } });
+    fireEvent.blur(input);
+    await vi.waitFor(() => expect(calls.find((x) => x.method === 'PATCH')?.body).toEqual({ label: 'PC ufficio' }));
+    expect(calls.filter((x) => x.method === 'PATCH')).toHaveLength(1);
+  });
+
+  it('rinomina: nome invariato, nessun salvataggio', async () => {
+    const calls = mockApi({ 'GET /api/devices': { status: 200, body: [PC] } });
+    render(<Devices connector={absent()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rinomina' }));
+    fireEvent.blur(screen.getByLabelText('Nuovo nome'));
+    expect(screen.queryByLabelText('Nuovo nome')).toBeNull();
+    expect(calls.some((x) => x.method === 'PATCH')).toBe(false);
   });
 
   it('Esc annulla la rinomina', async () => {
