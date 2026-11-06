@@ -7,8 +7,8 @@ export interface ExternalDeps {
   version: string;
   /** Account del token salvato; null se non collegato. */
   linkedUser(): Promise<string | null>;
-  /** Scambia il codice con il token del dispositivo; lancia un Error col messaggio del server. */
-  link(code: string): Promise<void>;
+  /** Scambia il codice con il token del dispositivo (`name`: scelto dall'agente); lancia un Error col messaggio del server. */
+  link(code: string, name?: string): Promise<void>;
   start(): Promise<SweepStarted>;
   stop(): Promise<void>;
   sweeping(): Promise<boolean>;
@@ -17,6 +17,12 @@ export interface ExternalDeps {
   retryNow(): void;
   /** L'agente ha cambiato il giro automatico: si richiede subito al server se è dovuto. */
   autoChanged(): void;
+  /** L'agente ha cambiato «Avvia dal telefono» di questo computer: si controlla subito. */
+  remoteChanged(): void;
+  /** Id del dispositivo sul server, se lo si conosce. */
+  deviceId(): Promise<string | null>;
+  /** Nome automatico del computer (browser e sistema). */
+  defaultName(): Promise<string>;
 }
 
 /** Messaggi della pagina del portale (`externally_connectable`): solo dalla sua origine. */
@@ -30,18 +36,21 @@ export async function handleExternal(
   try {
     switch (m.type) {
       case 'ping': {
-        const [userId, sweeping, q] = await Promise.all([d.linkedUser(), d.sweeping(), d.queueState()]);
+        const [userId, sweeping, q, deviceId, defaultName] = await Promise.all([d.linkedUser(), d.sweeping(), d.queueState(), d.deviceId(), d.defaultName()]);
         // Il portale risponde, quindi anche il server: le pagine in attesa partono ora, non fra qualche minuto.
         if (q.pending > 0) d.retryNow();
-        return { ok: true, data: { version: d.version, linked: userId != null, userId, sweeping, pending: q.pending, stuck: q.stuck } };
+        return { ok: true, data: { version: d.version, linked: userId != null, userId, sweeping, pending: q.pending, stuck: q.stuck, deviceId: userId != null ? deviceId : null, defaultName } };
       }
       case 'link':
-        await d.link(m.code);
+        await d.link(m.code, m.name);
         return { ok: true, data: null };
       case 'startSweep':
         return { ok: true, data: await d.start() };
       case 'autoChanged':
         d.autoChanged();
+        return { ok: true, data: null };
+      case 'remoteChanged':
+        d.remoteChanged();
         return { ok: true, data: null };
       case 'stopSweep':
         await d.stop();
