@@ -184,7 +184,7 @@ describe('fine del giro e avanzamento', () => {
     const during = await status(a);
     expect(during.running).toMatchObject({ total: plan.searches.length, done: 1, newCount: 1, drops: 0 });
     expect(during.running!.portals.immobiliare).toEqual({ pages: 1, privates: 1 });
-    expect(await status(b)).toEqual({ running: null, last: null });
+    expect(await status(b)).toEqual({ running: null, last: null, remote: null, computers: { enabled: 0, online: [] } });
     await finish(a, plan.sweepId!);
     const after = await status(a);
     expect(after.running).toBeNull();

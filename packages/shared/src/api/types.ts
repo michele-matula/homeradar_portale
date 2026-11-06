@@ -179,6 +179,8 @@ export interface ControlSweep {
   problems: number;
   /** Partito da solo (giro automatico). */
   auto: boolean;
+  /** Avviato dal telefono. */
+  remote: boolean;
 }
 
 export interface ControlRow {

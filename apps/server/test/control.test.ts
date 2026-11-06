@@ -13,7 +13,7 @@ type Base = Omit<ControlRow, 'health' | 'reasons'>;
 const base = (o: Partial<Base> = {}): Base => ({
   userId: 'u', email: 'a@b.it', status: 'active', lastSeenAt: NOW - DAY,
   devices: [{ id: 'd', name: 'Chrome · Windows', version: '0.4.0', createdAt: NOW - 30 * DAY, lastSeenAt: NOW - DAY, lastGoodSweepAt: NOW - DAY }],
-  lastSweep: { id: 's', startedAt: NOW - DAY, finishedAt: NOW - DAY + 60_000, outcome: 'completed', deviceName: 'Chrome · Windows', searches: 4, problems: 0, auto: false },
+  lastSweep: { id: 's', startedAt: NOW - DAY, finishedAt: NOW - DAY + 60_000, outcome: 'completed', deviceName: 'Chrome · Windows', searches: 4, problems: 0, auto: false, remote: false },
   sweeps30d: 5, errors7d: 0, ...o,
 });
 

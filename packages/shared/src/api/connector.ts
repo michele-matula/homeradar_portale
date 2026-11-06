@@ -139,6 +139,9 @@ export const DevicePatchBody = body({
   remote: z.boolean({ error: 'Richiesta non valida' }).optional(),
 });
 
+/** Il controllo del connettore non porta dati: il dispositivo è nel token. */
+export const RemotePollBody = body({});
+
 /** Risposta al controllo del connettore: interruttore, richiesta da prendere, stop del giro in corso. */
 export interface RemotePoll {
   enabled: boolean;

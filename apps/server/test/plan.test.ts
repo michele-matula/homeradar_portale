@@ -119,7 +119,7 @@ describe('POST /connector/sweeps', () => {
     const first = (await (await start(a)).json()) as SweepPlan;
     const r = await start({ auth: other.auth });
     expect(r.status).toBe(409);
-    expect(await r.json()).toEqual({ error: 'Giro già in corso su un altro computer' });
+    expect(await r.json()).toEqual({ error: 'Giro già in corso su «PC di prova»' });
 
     await env.DB.prepare('UPDATE sweeps SET last_activity_at = ? WHERE id = ?').bind(Date.now() - 16 * MIN, first.sweepId).run();
     const second = (await (await start({ auth: other.auth })).json()) as SweepPlan;
@@ -146,7 +146,7 @@ describe('giro automatico', () => {
   const NOW = Date.UTC(2026, 9, 20, 8);
   const autoOn = (who: Agent, hours: number | null = null) =>
     fetchApi('PUT', '/api/settings', { autoSweep: true, autoSweepHours: hours }, { Cookie: who.cookie });
-  const autoStart = async (who: Agent, now = NOW) => startSweep(env.DB, (await findUserById(env.DB, who.id))!, who.deviceId, now, true);
+  const autoStart = async (who: Agent, now = NOW) => startSweep(env.DB, (await findUserById(env.DB, who.id))!, who.deviceId, now, { auto: true });
   async function oldSweep(who: Agent, startedAt: number, outcome: string | null, auto = false, runs: [string, string][] = []) {
     const id = crypto.randomUUID();
     await env.DB.prepare('INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at, finished_at, outcome, auto) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)')
@@ -195,7 +195,7 @@ describe('giro automatico', () => {
     expect(auto.searches.some((s) => s.portal === 'idealista')).toBe(false);
     expect(auto.searches.length).toBeGreaterThan(0);
     await env.DB.prepare('UPDATE sweeps SET finished_at = ?, outcome = ? WHERE id = ?').bind(NOW, 'stopped', auto.sweepId).run();
-    const manual = (await startSweep(env.DB, (await findUserById(env.DB, a.id))!, a.deviceId, NOW, false)) as SweepPlan;
+    const manual = (await startSweep(env.DB, (await findUserById(env.DB, a.id))!, a.deviceId, NOW)) as SweepPlan;
     expect(manual.searches.some((s) => s.portal === 'idealista')).toBe(true);
   });
 
@@ -215,7 +215,7 @@ describe('giro automatico', () => {
   it('giro aperto su un altro computer: non dovuto, senza errore, si ricontrolla fra 15 minuti', async () => {
     await autoOn(a, 4);
     const other = await linkDevice(a.id);
-    await startSweep(env.DB, (await findUserById(env.DB, a.id))!, other.id, NOW - 10 * MIN, false);
+    await startSweep(env.DB, (await findUserById(env.DB, a.id))!, other.id, NOW - 10 * MIN);
     expect(await autoStart(a)).toMatchObject({ sweepId: null, notDue: true, nextCheckAt: NOW + 15 * MIN });
   });
 });

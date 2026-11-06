@@ -1,9 +1,10 @@
-import { BatchBody, FinishBody, HelloBody, LinkBody, RunBody, StartSweepBody } from '@homeradar/shared/api/connector';
+import { BatchBody, FinishBody, HelloBody, LinkBody, RemotePollBody, RunBody, StartSweepBody } from '@homeradar/shared/api/connector';
 import { ErrorReportBody } from '@homeradar/shared/api/types';
 import { DEVICE_NAME, deviceRoute, insertDevice, redeemLinkCode, replaceDevice, touchDevice } from '../device';
 import { QUOTA, recordErrors, takeQuota } from '../errors';
 import { fail, json, readBody, route, type Route } from '../http';
 import { ingestBatch, MAX_BATCH_BYTES } from '../ingest';
+import { pollRemote } from '../remote';
 import { finishSweep, reportRun, startSweep } from '../sweeps';
 import { findUserById } from '../users';
 
@@ -27,7 +28,7 @@ export const connectorRoutes: Route[] = [
   deviceRoute('POST', '/connector/sweeps', async (req, env, _p, { user, deviceId, now }) => {
     const body = await readBody(req, StartSweepBody);
     if (body instanceof Response) return body;
-    const plan = await startSweep(env.DB, user, deviceId, now, body.auto === true);
+    const plan = await startSweep(env.DB, user, deviceId, now, { auto: body.auto === true, remote: body.remote });
     if (plan instanceof Response) return plan;
     return json(plan, plan.sweepId ? 201 : 200);
   }),
@@ -36,7 +37,18 @@ export const connectorRoutes: Route[] = [
     // Il limite si conta leggendo il corpo: un lotto enorme non si carica in memoria.
     const body = await readBody(req, BatchBody, { bytes: MAX_BATCH_BYTES, error: 'Lotto troppo grande' });
     if (body instanceof Response) return body;
-    return ingestBatch(env.DB, user, deviceId, body, now);
+    const r = await ingestBatch(env.DB, user, deviceId, body, now);
+    if (r.status !== 200) return r;
+    // «Ferma» dal telefono: i lotti arrivano a ogni pagina, la risposta lo porta al connettore in pochi secondi.
+    const stop = await env.DB.prepare('SELECT 1 FROM sweeps WHERE id = ? AND user_id = ? AND stop_requested = 1').bind(body.sweepId, user.id).first();
+    return stop ? json({ ok: true, stop: true }) : r;
+  }),
+
+  // Controllo del connettore (ogni minuto con «Avvia dal telefono» attivo): richiesta da prendere e stop del giro.
+  deviceRoute('POST', '/connector/remote', async (req, env, _p, { user, deviceId, now }) => {
+    const body = await readBody(req, RemotePollBody);
+    if (body instanceof Response) return body;
+    return json(await pollRemote(env.DB, user, deviceId, now));
   }),
 
   deviceRoute('POST', '/connector/runs', async (req, env, _p, { user, now }) => {

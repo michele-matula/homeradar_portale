@@ -1,4 +1,5 @@
 import type { RunReport, SweepPlan } from '@homeradar/shared/api/connector';
+import type { AgentSettings } from '@homeradar/shared/api/types';
 import { AUTO_SWEEP_HOURS, autoSweepDecision, nextAfterSweep, type AutoSweepRow } from '@homeradar/shared/core/auto-sweep';
 import { isNewLead } from '@homeradar/shared/core/lead-groups';
 import { MISSING_SWEEPS } from '@homeradar/shared/core/missing';
@@ -9,6 +10,8 @@ import {
   type Portal, type PortalSweepOutcome, type SearchSpec, type SweepOutcome, type SweepProgress, type SweepResult, type SweepStatus,
 } from '@homeradar/shared/shared/types';
 import { ZONE_FILTER, zoneParams } from './archive';
+import { DEVICE_NAME } from './device';
+import { claimRemote, remoteStatus, setRemoteOutcome } from './remote';
 import { fail, json } from './http';
 import { agentLeads } from './leads';
 import { getSettings } from './settings';
@@ -29,6 +32,9 @@ interface SweepRow {
   missing: number;
   result: string | null;
   auto: number;
+  remote: number;
+  stop_requested: number;
+  device_id: string | null;
 }
 
 interface RunRow {
@@ -99,6 +105,7 @@ export async function finishSweep(db: D1Database, sweepId: string, outcome: Swee
     drops: s.drops,
     missing: s.missing,
     auto: s.auto === 1,
+    remote: s.remote === 1,
   };
   await db.prepare('UPDATE sweeps SET finished_at = ?, outcome = ?, result = ? WHERE id = ?').bind(result.finishedAt, result.outcome, JSON.stringify(result), sweepId).run();
   return result;
@@ -146,28 +153,58 @@ async function blockedPortals(db: D1Database, userId: string, now: number): Prom
  * ultimi minuti di freschezza) e quelle in corso per un altro agente. Il piano non dice chi le ha fatte.
  * Con `auto` il giro si apre solo se è dovuto (`core/auto-sweep`), senza i portali che hanno chiesto una verifica.
  */
-export async function startSweep(db: D1Database, user: UserRow, deviceId: string, now: number, auto = false): Promise<SweepPlan | Response> {
-  await closeStaleSweeps(db, user.id, now);
-  const settings = await getSettings(db, user.id);
-  if (auto) {
-    const decision = autoSweepDecision({ enabled: settings.autoSweep, hours: settings.autoSweepHours }, await recentSweeps(db, user.id, now), now);
-    if (!decision.due) return { sweepId: null, searches: [], skipped: 0, notDue: true, nextCheckAt: decision.nextCheckAt };
-  }
-  const open = await db.prepare('SELECT id, device_id FROM sweeps WHERE user_id = ? AND finished_at IS NULL').bind(user.id).all<{ id: string; device_id: string | null }>();
-  if (open.results.some((s) => s.device_id !== deviceId)) return fail(409, 'Giro già in corso su un altro computer');
-  for (const s of open.results) await finishSweep(db, s.id, 'interrupted', now);
-
-  const comuni = toComuneRefs(user.comuni);
-  if (!comuni.length) return fail(400, "Nessun comune assegnato: chiedi all'amministratore");
-  const blocked = auto ? await blockedPortals(db, user.id, now) : new Set<Portal>();
-  const specs = searchesFor({ comuni, categories: settings.categories }, settings.enabledPortals).filter((s) => !blocked.has(s.portal));
+/**
+ * Ricerche della zona e dei portali dell'agente (senza i portali `blocked`), e quelle da fare: tranne le fresche (complete
+ * di chiunque negli ultimi minuti di freschezza) e quelle in corso per un altro agente.
+ */
+export async function planSearches(
+  db: D1Database, user: UserRow, settings: AgentSettings, now: number, blocked: Set<Portal> = new Set(),
+): Promise<{ specs: SearchSpec[]; searches: SearchSpec[] }> {
+  const specs = searchesFor({ comuni: toComuneRefs(user.comuni), categories: settings.categories }, settings.enabledPortals).filter((s) => !blocked.has(s.portal));
   const { results: busy } = await db
     .prepare(`SELECT DISTINCT search_key FROM search_runs WHERE search_key IN (SELECT value FROM json_each(?1))
       AND ((status = 'complete' AND finished_at > ?2) OR (status = 'running' AND started_at > ?3 AND user_id IS NOT ?4))`)
     .bind(JSON.stringify(specs.map((s) => s.key)), now - (await freshnessMinutes(db)) * 60_000, now - RUNNING_SKIP_MS, user.id)
     .all<{ search_key: string }>();
   const skip = new Set(busy.map((r) => r.search_key));
-  const searches = specs.filter((s) => !skip.has(s.key));
+  return { specs, searches: specs.filter((s) => !skip.has(s.key)) };
+}
+
+const busyOn = (name: string | null) => fail(409, name ? `Giro già in corso su «${name}»` : 'Giro già in corso su un altro computer');
+
+/**
+ * Piano del giro: le ricerche della zona e dei portali dell'agente, tranne quelle fresche e quelle in corso per un altro
+ * agente. Il piano non dice chi le ha fatte.
+ * Con `auto` il giro si apre solo se è dovuto (`core/auto-sweep`), senza i portali che hanno chiesto una verifica.
+ * Con `remote` il computer prende prima la richiesta dal telefono, e l'esito del giro resta sulla richiesta.
+ */
+export async function startSweep(
+  db: D1Database, user: UserRow, deviceId: string, now: number, opts: { auto?: boolean; remote?: string } = {},
+): Promise<SweepPlan | Response> {
+  if (!opts.remote) return openSweep(db, user, deviceId, now, opts.auto === true, false);
+  if (!(await claimRemote(db, user.id, opts.remote, deviceId, now))) return fail(409, 'Richiesta già presa o scaduta');
+  const plan = await openSweep(db, user, deviceId, now, false, true);
+  if (plan instanceof Response) await setRemoteOutcome(db, user.id, plan.status === 409 ? 'busy' : 'failed', null);
+  else await setRemoteOutcome(db, user.id, plan.sweepId ? 'started' : 'fresh', plan.sweepId);
+  return plan;
+}
+
+async function openSweep(db: D1Database, user: UserRow, deviceId: string, now: number, auto: boolean, remote: boolean): Promise<SweepPlan | Response> {
+  await closeStaleSweeps(db, user.id, now);
+  const settings = await getSettings(db, user.id);
+  if (auto) {
+    const decision = autoSweepDecision({ enabled: settings.autoSweep, hours: settings.autoSweepHours }, await recentSweeps(db, user.id, now), now);
+    if (!decision.due) return { sweepId: null, searches: [], skipped: 0, notDue: true, nextCheckAt: decision.nextCheckAt };
+  }
+  const open = await db.prepare(`SELECT s.id, s.device_id, ${DEVICE_NAME} AS name FROM sweeps s LEFT JOIN devices d ON d.id = s.device_id
+    WHERE s.user_id = ? AND s.finished_at IS NULL`).bind(user.id).all<{ id: string; device_id: string | null; name: string | null }>();
+  const elsewhere = open.results.find((s) => s.device_id !== deviceId);
+  if (elsewhere) return busyOn(elsewhere.name);
+  for (const s of open.results) await finishSweep(db, s.id, 'interrupted', now);
+
+  if (!toComuneRefs(user.comuni).length) return fail(400, "Nessun comune assegnato: chiedi all'amministratore");
+  const blocked = auto ? await blockedPortals(db, user.id, now) : new Set<Portal>();
+  const { specs, searches } = await planSearches(db, user, settings, now, blocked);
   if (!searches.length) {
     // Dati già freschi (un collega della zona): per il giro automatico vale come un giro fatto adesso.
     if (auto) return { sweepId: null, searches: [], skipped: specs.length, notDue: true, nextCheckAt: nextAfterSweep(settings.autoSweepHours, now) };
@@ -177,15 +214,15 @@ export async function startSweep(db: D1Database, user: UserRow, deviceId: string
   const sweepId = crypto.randomUUID();
   try {
     await db.batch([
-      db.prepare('INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at, auto) VALUES (?, ?, ?, ?, ?, ?)')
-        .bind(sweepId, user.id, deviceId, now, now, auto ? 1 : 0),
+      db.prepare('INSERT INTO sweeps (id, user_id, device_id, started_at, last_activity_at, auto, remote) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(sweepId, user.id, deviceId, now, now, auto ? 1 : 0, remote ? 1 : 0),
       ...searches.map((s) =>
         db.prepare("INSERT INTO search_runs (sweep_id, search_key, portal, spec, user_id, status) VALUES (?, ?, ?, ?, ?, 'pending')").bind(sweepId, s.key, s.portal, JSON.stringify(s), user.id),
       ),
     ]);
   } catch (e) {
     // Due avvii nello stesso istante: l'indice sweeps_one_open lascia passare solo il primo.
-    if (e instanceof Error && /UNIQUE constraint failed: sweeps\.user_id/.test(e.message)) return fail(409, 'Giro già in corso su un altro computer');
+    if (e instanceof Error && /UNIQUE constraint failed: sweeps\.user_id/.test(e.message)) return busyOn(null);
     throw e;
   }
   return { sweepId, searches, skipped: specs.length - searches.length };
@@ -240,7 +277,11 @@ export async function sweepStatus(db: D1Database, user: UserRow, now: number): P
   await closeStaleSweeps(db, user.id, now);
   const open = await db.prepare('SELECT * FROM sweeps WHERE user_id = ? AND finished_at IS NULL ORDER BY started_at DESC LIMIT 1').bind(user.id).first<SweepRow>();
   const last = await db.prepare('SELECT result FROM sweeps WHERE user_id = ? AND result IS NOT NULL ORDER BY finished_at DESC LIMIT 1').bind(user.id).first<{ result: string }>();
-  return { running: open ? await progress(db, user, open) : null, last: last ? (JSON.parse(last.result) as SweepResult) : null };
+  return {
+    running: open ? await progress(db, user, open) : null,
+    last: last ? (JSON.parse(last.result) as SweepResult) : null,
+    ...(await remoteStatus(db, user.id, now)),
+  };
 }
 
 async function progress(db: D1Database, user: UserRow, s: SweepRow): Promise<SweepProgress> {
@@ -261,5 +302,10 @@ async function progress(db: D1Database, user: UserRow, s: SweepRow): Promise<Swe
     newCount,
     drops: s.drops,
     auto: s.auto === 1,
+    remote: s.remote === 1,
+    deviceName: s.device_id
+      ? ((await db.prepare(`SELECT ${DEVICE_NAME} AS name FROM devices d WHERE id = ?`).bind(s.device_id).first<string>('name')) ?? null)
+      : null,
+    stopRequested: s.stop_requested === 1,
   };
 }
