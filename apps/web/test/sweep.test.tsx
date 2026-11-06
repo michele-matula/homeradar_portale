@@ -101,7 +101,7 @@ describe('«Cerca» dal portale', () => {
     api();
     const c = fakeConnector(() => ok(STATE));
     render(<Sweep userId="u1" connector={c.port} phone />);
-    expect(await screen.findByText('Le ricerche partono dal computer')).toBeTruthy();
+    expect(await screen.findByText(/attiva «Avvia dal telefono» su un tuo computer/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Cerca' })).toBeNull();
     expect(c.sent).toEqual([]);
   });

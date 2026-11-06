@@ -178,7 +178,7 @@ describe('lista dei lead', () => {
       { 'GET /api/sweep': () => ({ status: 200, body: n++ === 0 ? { running, last: null } : { running: null, last } }) },
     ));
     renderAt('/');
-    await screen.findByText(/^Ricerca in corso/);
+    await screen.findByText(/^Giro in corso/);
     await act(() => vi.advanceTimersByTimeAsync(3_000));
     fireEvent.click(await screen.findByRole('button', { name: 'Vedi i nuovi' }));
     expect(rows()).toEqual(['Apri il lead: Nuovo del giro']);
