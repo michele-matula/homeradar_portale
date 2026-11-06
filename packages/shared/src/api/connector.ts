@@ -98,7 +98,11 @@ export const RunBody = body({
 
 export const FinishBody = body({ outcome: z.enum(['completed', 'partial', 'stopped', 'interrupted'], { error: 'Esito non valido' }) });
 /** `auto`: il connettore parte da solo, e il server apre il giro solo se è dovuto (`core/auto-sweep`). */
-export const StartSweepBody = body({ auto: z.boolean({ error: 'Richiesta non valida' }).optional() });
+/** `remote`: il giro chiesto dal telefono; il server prende la richiesta e apre il giro nella stessa chiamata. */
+export const StartSweepBody = body({
+  auto: z.boolean({ error: 'Richiesta non valida' }).optional(),
+  remote: z.uuid({ error: 'Richiesta non valida' }).optional(),
+});
 
 const BAD_REQUEST = { error: 'Richiesta non valida' };
 const field = (max: number) => z.string(BAD_REQUEST).min(1, BAD_REQUEST).max(max, BAD_REQUEST);
@@ -114,9 +118,45 @@ export const HelloBody = body({ name: field(100), version: field(20) });
 /** Connettore collegato, come lo vede l'agente nel portale. */
 export interface DeviceInfo {
   id: string;
+  /** Nome automatico (browser e sistema), aggiornato dal connettore. */
   name: string;
+  /** Nome scelto dall'agente; quello mostrato è `label ?? name`. */
+  label: string | null;
   createdAt: number;
   lastSeenAt: number | null;
+  /** «Avvia dal telefono» attivo. */
+  remote: boolean;
+  /** Il connettore è abbastanza nuovo da controllare le richieste. */
+  remoteReady: boolean;
+  /** Abilitato, pronto e sentito da poco. */
+  online: boolean;
+}
+
+const LABEL_ERROR = { error: 'Nome non valido: da 1 a 60 caratteri' };
+/** Rinomina (null = torna al nome automatico) e interruttore «Avvia dal telefono». */
+export const DevicePatchBody = body({
+  label: z.string(LABEL_ERROR).trim().min(1, LABEL_ERROR).max(60, LABEL_ERROR).nullable().optional(),
+  remote: z.boolean({ error: 'Richiesta non valida' }).optional(),
+});
+
+/** Risposta al controllo del connettore: interruttore, richiesta da prendere, stop del giro in corso. */
+export interface RemotePoll {
+  enabled: boolean;
+  requestId: string | null;
+  stop: boolean;
+}
+
+/** Risposta a `/connector/hello`. */
+export interface HelloReply {
+  deviceId: string;
+  remote: boolean;
+}
+
+/** Risposta a `/connector/link`. */
+export interface LinkReply {
+  token: string;
+  userId: string;
+  deviceId: string;
 }
 
 /** Ricerche da fare nel giro; `sweepId` null se sono tutte fresche o in corso per un altro agente. */

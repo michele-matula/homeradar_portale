@@ -10,16 +10,22 @@ export const CONNECTOR_STORE_URL = `https://chromewebstore.google.com/detail/${C
 
 export const NOT_LINKED = 'Connettore non collegato';
 
-/** `autoChanged`: l'agente ha cambiato il giro automatico, il connettore richiede subito al server se è dovuto. */
+/**
+ * `autoChanged`: l'agente ha cambiato il giro automatico, il connettore richiede subito al server se è dovuto.
+ * `remoteChanged`: l'agente ha cambiato «Avvia dal telefono» di questo computer, il connettore controlla subito.
+ * `link.name`: il nome scelto dall'agente per il computer.
+ */
 export type PortalMessage =
-  | { type: 'ping' } | { type: 'link'; code: string } | { type: 'startSweep' } | { type: 'stopSweep' } | { type: 'autoChanged' };
+  | { type: 'ping' } | { type: 'link'; code: string; name?: string } | { type: 'startSweep' } | { type: 'stopSweep' }
+  | { type: 'autoChanged' } | { type: 'remoteChanged' };
 
 export const PortalMessage: z.ZodType<PortalMessage> = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('ping') }),
-  z.strictObject({ type: z.literal('link'), code: z.string().min(1).max(200) }),
+  z.strictObject({ type: z.literal('link'), code: z.string().min(1).max(200), name: z.string().trim().min(1).max(60).optional() }),
   z.strictObject({ type: z.literal('startSweep') }),
   z.strictObject({ type: z.literal('stopSweep') }),
   z.strictObject({ type: z.literal('autoChanged') }),
+  z.strictObject({ type: z.literal('remoteChanged') }),
 ]);
 
 /** Risposta a `ping`: `pending` sono le pagine lette che aspettano d'essere inviate. */
@@ -31,6 +37,10 @@ export interface ConnectorState {
   sweeping: boolean;
   pending: number;
   stuck: boolean;
+  /** Id del dispositivo sul server: il portale segna «(questo computer)». null se non collegato o collegato da una versione vecchia. */
+  deviceId: string | null;
+  /** Nome automatico (browser e sistema), proposto al collegamento. */
+  defaultName: string;
 }
 
 /** Risposta a `startSweep`: `sweepId` null se tutte le ricerche erano fresche. */
