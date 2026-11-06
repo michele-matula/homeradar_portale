@@ -4,6 +4,7 @@ import type {
 import type { SearchErrorReason } from '@homeradar/shared/core/sweep';
 import type { Portal, SearchSpec, SweepOutcome } from '@homeradar/shared/shared/types';
 import { ERROR_TTL_MS } from './errors';
+import { DEVICE_NAME } from './device';
 
 const DAY_MS = 86_400_000;
 /** Oltre questo silenzio un connettore, o un agente, è da guardare. */
@@ -49,7 +50,7 @@ interface SweepRow {
   auto: number;
 }
 
-const SWEEP_COLUMNS = `s.id, s.user_id, s.started_at, s.finished_at, s.outcome, s.auto, d.name AS device_name,
+const SWEEP_COLUMNS = `s.id, s.user_id, s.started_at, s.finished_at, s.outcome, s.auto, ${DEVICE_NAME} AS device_name,
   (SELECT COUNT(*) FROM search_runs r WHERE r.sweep_id = s.id) AS searches,
   (SELECT COUNT(*) FROM search_runs r WHERE r.sweep_id = s.id AND r.status IN ('blocked', 'error')) AS problems
   FROM sweeps s LEFT JOIN devices d ON d.id = s.device_id`;
@@ -69,7 +70,7 @@ export async function controlRows(db: D1Database, now: number, userId?: string):
   if (!users.length) return [];
   const ids = JSON.stringify(users.map((u) => u.id));
   const [devices, lastSweeps, recent, errors] = await db.batch([
-    db.prepare(`SELECT d.id, d.user_id, d.name, d.version, d.created_at, d.last_seen_at,
+    db.prepare(`SELECT d.id, d.user_id, ${DEVICE_NAME} AS name, d.version, d.created_at, d.last_seen_at,
         (SELECT MAX(s.finished_at) FROM sweeps s WHERE s.device_id = d.id AND s.outcome = 'completed'
           AND NOT EXISTS (SELECT 1 FROM search_runs r WHERE r.sweep_id = s.id AND r.status IN ('blocked', 'error'))) AS last_good
       FROM devices d WHERE d.user_id IN (SELECT value FROM json_each(?)) ORDER BY d.created_at`).bind(ids),

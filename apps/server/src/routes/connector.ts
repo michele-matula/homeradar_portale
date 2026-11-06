@@ -1,6 +1,6 @@
 import { BatchBody, FinishBody, HelloBody, LinkBody, RunBody, StartSweepBody } from '@homeradar/shared/api/connector';
 import { ErrorReportBody } from '@homeradar/shared/api/types';
-import { deviceRoute, insertDevice, redeemLinkCode, replaceDevice, touchDevice } from '../device';
+import { DEVICE_NAME, deviceRoute, insertDevice, redeemLinkCode, replaceDevice, touchDevice } from '../device';
 import { QUOTA, recordErrors, takeQuota } from '../errors';
 import { fail, json, readBody, route, type Route } from '../http';
 import { ingestBatch, MAX_BATCH_BYTES } from '../ingest';
@@ -21,7 +21,7 @@ export const connectorRoutes: Route[] = [
     const { id, token } = await insertDevice(env.DB, user.id, body.name, now, body.version);
     if (body.previousToken) await replaceDevice(env.DB, user.id, body.previousToken, id);
     // L'account del token: il portale lo confronta con quello di chi è entrato (PC condiviso, cambio d'account).
-    return json({ token, userId: user.id }, 201);
+    return json({ token, userId: user.id, deviceId: id }, 201);
   }),
 
   deviceRoute('POST', '/connector/sweeps', async (req, env, _p, { user, deviceId, now }) => {
@@ -57,7 +57,8 @@ export const connectorRoutes: Route[] = [
     const body = await readBody(req, HelloBody);
     if (body instanceof Response) return body;
     await touchDevice(env.DB, deviceId, body.name, body.version, now);
-    return new Response(null, { status: 204 });
+    const remote = await env.DB.prepare('SELECT remote FROM devices WHERE id = ?').bind(deviceId).first<number>('remote');
+    return json({ deviceId, remote: remote === 1 });
   }),
 
   deviceRoute('POST', '/connector/errors', async (req, env, _p, { user, deviceId, now }) => {
@@ -65,7 +66,7 @@ export const connectorRoutes: Route[] = [
     if (body instanceof Response) return body;
     const allowed = await takeQuota(env.DB, `d:${deviceId}`, body.errors.length, QUOTA.device, now);
     if (allowed > 0) {
-      const d = await env.DB.prepare('SELECT name FROM devices WHERE id = ?').bind(deviceId).first<{ name: string }>();
+      const d = await env.DB.prepare(`SELECT ${DEVICE_NAME} AS name FROM devices d WHERE id = ?`).bind(deviceId).first<{ name: string }>();
       const origin = { source: 'connector' as const, version: body.version, userId: user.id, deviceId, deviceName: d?.name };
       await recordErrors(env.DB, origin, body.errors.slice(0, allowed), now);
     }
