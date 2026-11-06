@@ -33,7 +33,7 @@ export function Devices({ reload = 0, connector = chromeConnector }: {
     return () => clearInterval(h);
   }, [reload, load]);
   useEffect(() => {
-    void connector.send<ConnectorState>({ type: 'ping' }).then((r) => setHere(r?.ok ? r.data.deviceId : null), () => {});
+    void connector.send<ConnectorState>({ type: 'ping' }).then((r) => setHere(r?.ok ? (r.data?.deviceId ?? null) : null), () => {});
   }, [connector]);
 
   async function act(f: () => Promise<unknown>): Promise<void> {
