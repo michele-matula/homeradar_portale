@@ -152,6 +152,13 @@ describe('il computer prende la richiesta', () => {
     expect((await status(a)).remote).toMatchObject({ state: 'failed', deviceName: 'PC di prova' });
   });
 
+  it('un giro partito dal PC mentre la richiesta aspetta la chiude come partita', async () => {
+    await ask(a);
+    expect((await fetchConnector('POST', '/connector/sweeps', {}, a.pc.auth)).status).toBe(201);
+    expect((await status(a)).remote).toMatchObject({ state: 'started' });
+    expect((await poll(a.pc)).requestId).toBeNull();
+  });
+
   it('una richiesta di più di 10 minuti fa non si mostra più', async () => {
     await ask(a);
     await env.DB.prepare('UPDATE remote_requests SET created_at = ?, expires_at = ?').bind(Date.now() - 11 * 60_000, Date.now() - 9 * 60_000).run();
@@ -176,6 +183,25 @@ describe('Ferma dal telefono e computer online', () => {
     expect((await poll(a.pc)).stop).toBe(true);
     const other = await device(a.id);
     expect((await poll(other)).stop).toBe(false);
+  });
+
+  it('il giro dice se il suo computer sa ricevere «Ferma» dal telefono', async () => {
+    await fetchConnector('POST', '/connector/sweeps', {}, a.pc.auth);
+    expect((await status(a)).running).toMatchObject({ canStop: true });
+    await env.DB.prepare("UPDATE devices SET version = '0.2.0'").run();
+    expect((await status(a)).running).toMatchObject({ canStop: false });
+  });
+
+  it('un lotto arrivato dopo la fine del giro fermato non chiede più lo stop', async () => {
+    const plan = (await (await fetchConnector('POST', '/connector/sweeps', {}, a.pc.auth)).json()) as SweepPlan;
+    await fetchApi('POST', '/api/sweep/stop', {}, { Cookie: a.cookie });
+    await fetchConnector('POST', `/connector/sweeps/${plan.sweepId}/finish`, { outcome: 'interrupted' }, a.pc.auth);
+    const spec = plan.searches[0]!;
+    const late = {
+      id: crypto.randomUUID(), sweepId: plan.sweepId, searchKey: spec.key, readAt: Date.now(), page: 1, observations: [],
+      report: { portal: spec.portal, url: 'https://www.immobiliare.it/x/', results: 0, privates: 0, lastPage: true, blocked: false, notFound: false, parseErrors: 0 },
+    };
+    expect(await (await fetchConnector('POST', '/connector/batches', late, a.pc.auth)).json()).toEqual({ ok: true });
   });
 
   it('online dopo un controllo recente, non dopo 3 minuti', async () => {

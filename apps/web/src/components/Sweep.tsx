@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CONNECTOR_STORE_URL, type ConnectorState, type SweepStarted } from '@homeradar/shared/api/connector-messages';
+import { REMOTE_MIN_VERSION, versionAtLeast } from '@homeradar/shared/core/remote';
 import { startOfLocalDay } from '@homeradar/shared/core/recall';
 import { PORTAL_SITES, PORTALS, type SweepStatus } from '@homeradar/shared/shared/types';
 import { api, errorText } from '../api';
@@ -101,8 +102,12 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
       if (!state?.ok) throw new Error('Il connettore non risponde');
       // Non collegato, o collegato a un altro account (PC condiviso, cambio d'account): si collega a questo.
       if (!state.data.linked || state.data.userId !== userId) {
-        setNaming(state.data.defaultName ?? '');
-        return;
+        // Un connettore più vecchio dell'avvio dal telefono rifiuterebbe il nome: si collega come prima.
+        if (!versionAtLeast(state.data.version, REMOTE_MIN_VERSION)) await linkNow();
+        else {
+          setNaming(state.data.defaultName ?? '');
+          return;
+        }
       }
       await run();
     } catch (e) {

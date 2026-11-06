@@ -40,7 +40,7 @@ export const connectorRoutes: Route[] = [
     const r = await ingestBatch(env.DB, user, deviceId, body, now);
     if (r.status !== 200) return r;
     // «Ferma» dal telefono: i lotti arrivano a ogni pagina, la risposta lo porta al connettore in pochi secondi.
-    const stop = await env.DB.prepare('SELECT 1 FROM sweeps WHERE id = ? AND user_id = ? AND stop_requested = 1').bind(body.sweepId, user.id).first();
+    const stop = await env.DB.prepare('SELECT 1 FROM sweeps WHERE id = ? AND user_id = ? AND stop_requested = 1 AND finished_at IS NULL').bind(body.sweepId, user.id).first();
     return stop ? json({ ok: true, stop: true }) : r;
   }),
 

@@ -30,6 +30,8 @@ export function RemoteSweep({ status, refresh, openedAt, installHint, onShowNew 
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<number | null>(null);
+  /** L'agente ha premuto «Avvia sul computer» in questa pagina: la richiesta si mostra anche se l'orologio del telefono è avanti. */
+  const [asked, setAsked] = useState(false);
 
   async function act(f: () => Promise<void>): Promise<void> {
     setBusy(true);
@@ -48,6 +50,7 @@ export function RemoteSweep({ status, refresh, openedAt, installHint, onShowNew 
     act(async () => {
       const r = await api<{ fresh: boolean }>('POST', '/api/sweep/remote', {});
       if (r.fresh) setInfo(FRESH);
+      else setAsked(true);
     });
   const cancel = () => act(() => api('DELETE', '/api/sweep/remote'));
   const stop = () => act(() => api('POST', '/api/sweep/stop', {}));
@@ -60,7 +63,7 @@ export function RemoteSweep({ status, refresh, openedAt, installHint, onShowNew 
   );
   const running = status?.running ?? null;
   const last = status?.last ?? null;
-  const remote = status?.remote && status.remote.createdAt >= openedAt ? status.remote : null;
+  const remote = status?.remote && (asked || status.remote.createdAt >= openedAt) ? status.remote : null;
 
   if (running) {
     const title = running.auto ? 'Giro automatico in corso' : running.deviceName ? `Giro in corso su «${running.deviceName}»` : 'Giro in corso';
@@ -71,6 +74,9 @@ export function RemoteSweep({ status, refresh, openedAt, installHint, onShowNew 
         <p>{`${running.done} di ${running.total} ricerche · finora ${running.newCount} annunci nuovi`}</p>
         {running.stopRequested ? (
           <p className="hint">Si ferma entro un minuto…</p>
+        ) : running.canStop === false ? (
+          // Un connettore più vecchio dell'avvio dal telefono non riceve «Ferma» dal server.
+          <p className="hint">{`Per fermarlo dal telefono aggiorna il connettore su «${running.deviceName ?? 'quel computer'}»`}</p>
         ) : (
           <div className="sweep__row">
             <button type="button" className="btn" disabled={busy} onClick={() => void stop()}>

@@ -6,7 +6,7 @@ import { Sweep } from '../src/components/Sweep';
 import type { ConnectorPort } from '../src/connector';
 import { mockApi, type Routes } from './helpers';
 
-const STATE: ConnectorState = { version: '0.1.0', linked: true, userId: 'u1', sweeping: false, pending: 0, stuck: false, deviceId: 'd1', defaultName: 'Chrome su Windows' };
+const STATE: ConnectorState = { version: '0.3.0', linked: true, userId: 'u1', sweeping: false, pending: 0, stuck: false, deviceId: 'd1', defaultName: 'Chrome su Windows' };
 const IDLE = { 'GET /api/sweep': { status: 200, body: { running: null, last: null, remote: null, computers: { enabled: 0, online: [] } } } };
 
 /** Connettore finto: registra i messaggi e risponde con `reply`, o null se assente. */
@@ -46,6 +46,17 @@ describe('«Cerca» dal portale', () => {
     expect(c.types().slice(1, 4)).toEqual(['ping', 'link', 'startSweep']);
     expect(c.sent.find((m) => m.type === 'link')).toEqual({ type: 'link', code: 'cod1', name: 'PC di casa' });
     expect(calls.some((x) => x.method === 'POST' && x.path === '/api/devices/link-code')).toBe(true);
+  });
+
+  it('connettore vecchio (0.2.0): collega senza chiedere il nome, che non saprebbe ricevere', async () => {
+    api();
+    const old = { version: '0.2.0', linked: false, userId: null, sweeping: false, pending: 0, stuck: false };
+    const c = fakeConnector((m) => (m.type === 'ping' ? ok(old as unknown as ConnectorState) : m.type === 'startSweep' ? ok({ sweepId: 'g', total: 1, skipped: 0 }) : ok(null)));
+    render(<Sweep userId="u1" connector={c.port} phone={false} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
+    await vi.waitFor(() => expect(c.types()).toContain('startSweep'));
+    expect(screen.queryByLabelText('Come lo chiami?')).toBeNull();
+    expect(c.sent.find((m) => m.type === 'link')).toEqual({ type: 'link', code: 'cod1' });
   });
 
   it('connettore collegato a un altro account: lo ricollega a questo', async () => {

@@ -79,6 +79,8 @@ export interface SweepProgress {
   deviceName: string | null;
   /** «Ferma» premuto dal telefono: il connettore lo vede al prossimo lotto o controllo. */
   stopRequested: boolean;
+  /** Il connettore del computer del giro sa ricevere «Ferma» dal telefono (versione abbastanza nuova). */
+  canStop: boolean;
 }
 
 /** Richiesta di giro dal telefono, come la vede il telefono. */

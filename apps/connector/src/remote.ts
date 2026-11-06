@@ -54,3 +54,13 @@ export function createRemote(d: RemoteDeps) {
     },
   };
 }
+
+/**
+ * «Ferma» dal telefono nella risposta a un lotto: vale solo se il lotto è del giro in corso. Un lotto rimasto in coda
+ * di un giro vecchio non deve fermare quello nuovo.
+ */
+export function stopFromBatch(path: string, body: unknown, reply: unknown, currentSweepId: string | null): boolean {
+  if (path !== '/connector/batches' || currentSweepId == null) return false;
+  if ((reply as { stop?: unknown } | null)?.stop !== true) return false;
+  return (body as { sweepId?: unknown } | null)?.sweepId === currentSweepId;
+}

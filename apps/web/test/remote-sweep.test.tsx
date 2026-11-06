@@ -9,7 +9,7 @@ const absent: ConnectorPort = { send: vi.fn(async () => null) as never };
 const BASE: SweepStatus = { running: null, last: null, remote: null, computers: { enabled: 1, online: ['PC di casa'] } };
 const RUNNING: SweepProgress = {
   startedAt: Date.now() - 60_000, total: 10, done: 4, current: 'Treviglio', portals: {}, newCount: 3, drops: 0,
-  auto: false, remote: true, deviceName: 'PC di casa', stopRequested: false,
+  auto: false, remote: true, deviceName: 'PC di casa', stopRequested: false, canStop: true,
 };
 
 function phone(status: Partial<SweepStatus> | (() => Partial<SweepStatus>), extra: Routes = {}) {
@@ -93,6 +93,19 @@ describe('«Avvia sul computer» dal telefono', () => {
     expect(screen.getByRole('button', { name: 'Riprova' })).toBeTruthy();
   });
 
+  it('orologio del telefono avanti: dopo il tocco la richiesta si vede lo stesso', async () => {
+    let state: Partial<SweepStatus> = {};
+    phone(() => state, {
+      'POST /api/sweep/remote': () => {
+        // Ora del server: due minuti prima di quella del telefono.
+        state = { remote: { state: 'waiting', createdAt: Date.now() - 120_000, deviceName: null } };
+        return { status: 201, body: { fresh: false } };
+      },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Avvia sul computer' }));
+    expect(await screen.findByText('Aspetto un computer acceso… (fino a 2 minuti)')).toBeTruthy();
+  });
+
   it('una richiesta di prima di aprire la pagina non si mostra', async () => {
     phone({ remote: { state: 'noAnswer', createdAt: Date.now() - 60_000, deviceName: null } });
     expect(await screen.findByRole('button', { name: 'Avvia sul computer' })).toBeTruthy();
@@ -122,6 +135,12 @@ describe('«Avvia sul computer» dal telefono', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ferma' }));
     await vi.waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.path === '/api/sweep/stop')).toBe(true));
     expect(await screen.findByText('Si ferma entro un minuto…')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Ferma' })).toBeNull();
+  });
+
+  it('computer del giro col connettore vecchio: niente Ferma, invito ad aggiornare', async () => {
+    phone({ running: { ...RUNNING, canStop: false } });
+    expect(await screen.findByText('Per fermarlo dal telefono aggiorna il connettore su «PC di casa»')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Ferma' })).toBeNull();
   });
 

@@ -10,7 +10,7 @@ import { handleExternal } from '../external';
 import { createSendQueue } from '../queue';
 import { openQueueStore } from '../queue-store';
 import type { ReaderMessage } from '../reader';
-import { createRemote } from '../remote';
+import { createRemote, stopFromBatch } from '../remote';
 import { createRunner, type RunnerState } from '../runner';
 import { stuckSignal } from '../stuck';
 import { TIMING } from '../timing';
@@ -83,8 +83,10 @@ export default defineBackground(() => {
     store: openQueueStore(),
     async post(path, body) {
       const r = await client.post(path, body);
-      // «Ferma» dal telefono: arriva con la risposta al lotto, che parte a ogni pagina.
-      if ((r.data as { stop?: boolean } | null)?.stop === true) void runner.stop().catch(() => {});
+      // «Ferma» dal telefono: arriva con la risposta al lotto, che parte a ogni pagina. Solo per il giro in corso: lo stato
+      // si legge dallo storage e non dal runner, che potrebbe essere occupato proprio a mettere in coda questo lotto.
+      const current = ((await browser.storage.local.get('sweep')).sweep as RunnerState | undefined)?.sweep.id ?? null;
+      if (stopFromBatch(path, body, r.data, current)) void runner.stop().catch(() => {});
       return r;
     },
     now: Date.now,

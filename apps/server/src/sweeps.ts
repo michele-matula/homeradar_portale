@@ -3,6 +3,7 @@ import type { AgentSettings } from '@homeradar/shared/api/types';
 import { AUTO_SWEEP_HOURS, autoSweepDecision, nextAfterSweep, type AutoSweepRow } from '@homeradar/shared/core/auto-sweep';
 import { isNewLead } from '@homeradar/shared/core/lead-groups';
 import { MISSING_SWEEPS } from '@homeradar/shared/core/missing';
+import { REMOTE_MIN_VERSION, versionAtLeast } from '@homeradar/shared/core/remote';
 import { startOfLocalDay } from '@homeradar/shared/core/recall';
 import { searchesFor } from '@homeradar/shared/core/searches';
 import {
@@ -225,6 +226,11 @@ async function openSweep(db: D1Database, user: UserRow, deviceId: string, now: n
     if (e instanceof Error && /UNIQUE constraint failed: sweeps\.user_id/.test(e.message)) return busyOn(null);
     throw e;
   }
+  // Giro partito dal computer (Cerca o automatico) mentre il telefono aspetta: la richiesta è soddisfatta da questo giro.
+  if (!remote) {
+    await db.prepare("UPDATE remote_requests SET outcome = 'started', sweep_id = ? WHERE user_id = ? AND outcome IS NULL AND device_id IS NULL")
+      .bind(sweepId, user.id).run();
+  }
   return { sweepId, searches, skipped: specs.length - searches.length };
 }
 
@@ -286,6 +292,9 @@ export async function sweepStatus(db: D1Database, user: UserRow, now: number): P
 
 async function progress(db: D1Database, user: UserRow, s: SweepRow): Promise<SweepProgress> {
   const runs = await runsOf(db, s.id);
+  const device = s.device_id
+    ? await db.prepare(`SELECT ${DEVICE_NAME} AS name, d.version FROM devices d WHERE id = ?`).bind(s.device_id).first<{ name: string; version: string | null }>()
+    : null;
   const current = runs.filter((r) => r.status === 'running').sort((a, b) => (b.started_at ?? 0) - (a.started_at ?? 0))[0];
   // Durante il giro basta un conteggio: annunci nuovi della zona, senza costruire i lead a ogni interrogazione.
   const comuni = toComuneRefs(user.comuni);
@@ -303,9 +312,8 @@ async function progress(db: D1Database, user: UserRow, s: SweepRow): Promise<Swe
     drops: s.drops,
     auto: s.auto === 1,
     remote: s.remote === 1,
-    deviceName: s.device_id
-      ? ((await db.prepare(`SELECT ${DEVICE_NAME} AS name FROM devices d WHERE id = ?`).bind(s.device_id).first<string>('name')) ?? null)
-      : null,
+    deviceName: device?.name ?? null,
     stopRequested: s.stop_requested === 1,
+    canStop: versionAtLeast(device?.version ?? null, REMOTE_MIN_VERSION),
   };
 }

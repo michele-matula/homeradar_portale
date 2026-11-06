@@ -1,7 +1,7 @@
 import type { RemotePoll } from '@homeradar/shared/api/connector';
 import type { SweepStarted } from '@homeradar/shared/api/connector-messages';
 import { describe, expect, it, vi } from 'vitest';
-import { createRemote, type RemoteDeps } from '../../src/remote';
+import { createRemote, stopFromBatch, type RemoteDeps } from '../../src/remote';
 
 const REQUEST: RemotePoll = { enabled: true, requestId: 'r1', stop: false };
 
@@ -70,5 +70,16 @@ describe('richieste dal telefono', () => {
     const r = createRemote(d);
     await Promise.all([r.check(), r.check()]);
     expect(d.poll).toHaveBeenCalledOnce();
+  });
+});
+
+describe('stop nella risposta ai lotti', () => {
+  it('ferma solo se il lotto è del giro in corso', () => {
+    const batch = { sweepId: 's1' };
+    expect(stopFromBatch('/connector/batches', batch, { ok: true, stop: true }, 's1')).toBe(true);
+    expect(stopFromBatch('/connector/batches', batch, { ok: true, stop: true }, 's2')).toBe(false);
+    expect(stopFromBatch('/connector/batches', batch, { ok: true, stop: true }, null)).toBe(false);
+    expect(stopFromBatch('/connector/batches', batch, { ok: true }, 's1')).toBe(false);
+    expect(stopFromBatch('/connector/runs', batch, { ok: true, stop: true }, 's1')).toBe(false);
   });
 });
