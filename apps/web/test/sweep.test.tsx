@@ -6,8 +6,8 @@ import { Sweep } from '../src/components/Sweep';
 import type { ConnectorPort } from '../src/connector';
 import { mockApi, type Routes } from './helpers';
 
-const STATE: ConnectorState = { version: '0.1.0', linked: true, userId: 'u1', sweeping: false, pending: 0, stuck: false };
-const IDLE = { 'GET /api/sweep': { status: 200, body: { running: null, last: null } } };
+const STATE: ConnectorState = { version: '0.1.0', linked: true, userId: 'u1', sweeping: false, pending: 0, stuck: false, deviceId: 'd1', defaultName: 'Chrome su Windows' };
+const IDLE = { 'GET /api/sweep': { status: 200, body: { running: null, last: null, remote: null, computers: { enabled: 0, online: [] } } } };
 
 /** Connettore finto: registra i messaggi e risponde con `reply`, o null se assente. */
 function fakeConnector(reply: (m: PortalMessage, n: number) => ConnectorReply<unknown> | null) {
@@ -31,15 +31,20 @@ function api(extra: Routes = {}) {
 afterEach(() => vi.useRealTimers());
 
 describe('«Cerca» dal portale', () => {
-  it('non collegato: chiede il codice, collega il connettore e parte', async () => {
+  it('non collegato: chiede il nome del computer, collega il connettore e parte', async () => {
     const calls = api();
     const c = fakeConnector((m) => (m.type === 'ping' ? ok({ ...STATE, linked: false }) : m.type === 'startSweep' ? ok({ sweepId: 'g', total: 3, skipped: 0 }) : ok(null)));
     render(<Sweep userId="u1" connector={c.port} phone={false} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
+    const name = (await screen.findByLabelText('Come lo chiami?')) as HTMLInputElement;
+    expect(name.value).toBe('Chrome su Windows');
+    expect(c.types()).not.toContain('link');
+    fireEvent.change(name, { target: { value: 'PC di casa' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Collega' }));
     await vi.waitFor(() => expect(c.types()).toContain('startSweep'));
     // Il primo ping è quello all'apertura; dopo l'avvio ne parte un altro.
     expect(c.types().slice(1, 4)).toEqual(['ping', 'link', 'startSweep']);
-    expect(c.sent.find((m) => m.type === 'link')).toEqual({ type: 'link', code: 'cod1' });
+    expect(c.sent.find((m) => m.type === 'link')).toEqual({ type: 'link', code: 'cod1', name: 'PC di casa' });
     expect(calls.some((x) => x.method === 'POST' && x.path === '/api/devices/link-code')).toBe(true);
   });
 
@@ -48,6 +53,7 @@ describe('«Cerca» dal portale', () => {
     const c = fakeConnector((m) => (m.type === 'ping' ? ok({ ...STATE, userId: 'altro' }) : m.type === 'startSweep' ? ok({ sweepId: 'g', total: 1, skipped: 0 }) : ok(null)));
     render(<Sweep userId="u1" connector={c.port} phone={false} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Collega' }));
     await vi.waitFor(() => expect(c.types()).toContain('startSweep'));
     expect(c.types().slice(1, 4)).toEqual(['ping', 'link', 'startSweep']);
   });

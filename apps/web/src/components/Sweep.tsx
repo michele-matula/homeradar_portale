@@ -60,6 +60,8 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Nome del computer da collegare, mentre l'agente lo sceglie; null fuori dal collegamento. */
+  const [naming, setNaming] = useState<string | null>(null);
   // Il riepilogo si mostra per un giro finito mentre la pagina era aperta, finché l'agente non lo chiude.
   const [openedAt] = useState(Date.now);
   const [dismissed, setDismissed] = useState<number | null>(null);
@@ -107,14 +109,15 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
     return () => clearInterval(h);
   }, [running, waiting, pending, refresh, ping, phone, hasZone]);
 
-  async function linkNow(): Promise<void> {
+  async function linkNow(name?: string): Promise<void> {
     const { code } = await api<{ code: string }>('POST', '/api/devices/link-code', {});
-    const r = await connector.send<null>({ type: 'link', code });
+    const r = await connector.send<null>(name ? { type: 'link', code, name } : { type: 'link', code });
     if (!r) throw new Error('Il connettore non risponde');
     if (!r.ok) throw new Error(r.error);
     onLinked?.();
   }
 
+  /** «Cerca»: se il connettore non è collegato a questo account, prima si chiede il nome del computer. */
   async function start(): Promise<void> {
     setBusy(true);
     setError(null);
@@ -123,23 +126,45 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
       const state = await connector.send<ConnectorState>({ type: 'ping' });
       if (!state?.ok) throw new Error('Il connettore non risponde');
       // Non collegato, o collegato a un altro account (PC condiviso, cambio d'account): si collega a questo.
-      if (!state.data.linked || state.data.userId !== userId) await linkNow();
-      let r = await connector.send<SweepStarted>({ type: 'startSweep' });
-      // Collegamento revocato dal portale o token perso: si ricollega una volta sola.
-      if (r && !r.ok && r.notLinked) {
-        await linkNow();
-        r = await connector.send<SweepStarted>({ type: 'startSweep' });
+      if (!state.data.linked || state.data.userId !== userId) {
+        setNaming(state.data.defaultName ?? '');
+        return;
       }
-      if (!r) throw new Error('Il connettore non risponde');
-      if (!r.ok) throw new Error(r.error);
-      if (r.data.sweepId === null) setInfo("Dati già aggiornati da meno di un'ora");
-      await refresh();
-      await ping();
+      await run();
     } catch (e) {
       setError(errorText(e));
     } finally {
       setBusy(false);
     }
+  }
+
+  /** «Collega»: collega con il nome scelto, poi parte il giro. */
+  async function linkAndStart(name: string): Promise<void> {
+    setBusy(true);
+    setError(null);
+    try {
+      await linkNow(name.trim() || undefined);
+      setNaming(null);
+      await run();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function run(): Promise<void> {
+    let r = await connector.send<SweepStarted>({ type: 'startSweep' });
+    // Collegamento revocato dal portale o token perso: si ricollega una volta sola (il nome resta quello automatico).
+    if (r && !r.ok && r.notLinked) {
+      await linkNow();
+      r = await connector.send<SweepStarted>({ type: 'startSweep' });
+    }
+    if (!r) throw new Error('Il connettore non risponde');
+    if (!r.ok) throw new Error(r.error);
+    if (r.data.sweepId === null) setInfo("Dati già aggiornati da meno di un'ora");
+    await refresh();
+    await ping();
   }
 
   async function stop(): Promise<void> {
@@ -235,7 +260,24 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
       )}
       <p className="sweep__last">{last ? lastLine(last) : 'Nessun giro fatto finora'}</p>
       {last && reasons(last).map((r) => <p key={r} className="sweep__reason">{r}</p>)}
-      {conn && (
+      {conn && naming !== null && (
+        <form
+          className="sweep__link"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void linkAndStart(naming);
+          }}
+        >
+          <h3>Collega questo computer</h3>
+          <label htmlFor="device-name">Come lo chiami?</label>
+          <input id="device-name" value={naming} maxLength={60} onChange={(e) => setNaming(e.target.value)} />
+          <p className="hint">es. PC di casa, PC ufficio</p>
+          <button type="submit" className="btn btn--primary" disabled={busy}>
+            Collega
+          </button>
+        </form>
+      )}
+      {conn && naming === null && (
         <div className="sweep__row">
           {!today && <span>Giro di oggi da fare</span>}
           <button type="button" className={today ? 'btn' : 'btn btn--primary'} disabled={busy} onClick={() => void start()}>
