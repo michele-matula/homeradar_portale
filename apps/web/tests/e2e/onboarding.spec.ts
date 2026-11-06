@@ -19,7 +19,7 @@ test('invito → accesso → lead', async ({ page, browser }) => {
   // L'admin crea l'agente con un comune e prende il link d'invito.
   await page.goto('/');
   await signIn(page, ADMIN);
-  await expect(page.getByRole('button', { name: 'Esci' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Account: / })).toBeVisible();
   await page.goto('/admin/utenti');
   const form = page.getByRole('form', { name: 'Nuovo agente' });
   await form.getByLabel("Email dell'agente").fill(AGENT.email);
@@ -50,6 +50,7 @@ test('invito → accesso → lead', async ({ page, browser }) => {
   await expect(agent.getByRole('dialog')).toHaveCount(0);
 
   // Esce e rientra con la sua password.
+  await agent.getByRole('button', { name: /^Account: / }).click();
   await agent.getByRole('button', { name: 'Esci' }).click();
   await signIn(agent, AGENT);
   await expect(agent.getByRole('link', { name: 'Apri il lead: Villa con giardino' })).toBeVisible();

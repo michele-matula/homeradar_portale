@@ -43,7 +43,8 @@ describe('accesso', () => {
   it('esci', async () => {
     const calls = mockApi({ 'GET /api/me': { status: 200, body: { user: AGENT } }, 'POST /api/logout': { status: 204 } });
     renderAt('/');
-    fireEvent.click(await screen.findByRole('button', { name: 'Esci' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Account: mario@rossi.it' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Esci' }));
     expect(await screen.findByRole('button', { name: 'Accedi' })).toBeTruthy();
     expect(calls.some((c) => c.method === 'POST' && c.path === '/api/logout')).toBe(true);
   });
@@ -52,7 +53,30 @@ describe('accesso', () => {
     mockApi({ 'GET /api/me': { status: 200, body: { user: AGENT } } });
     renderAt('/');
     expect(await screen.findByText('mario@rossi.it')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Account: mario@rossi.it' }).textContent).toBe('M');
+    expect(screen.getByRole('button', { name: 'Account: mario@rossi.it' }).textContent).toBe('Mmario@rossi.it');
+  });
+
+  it("il menu dell'account si apre e si chiude con Esc; «Esci» sta solo lì", async () => {
+    mockApi({ 'GET /api/me': { status: 200, body: { user: AGENT } } });
+    renderAt('/');
+    const account = await screen.findByRole('button', { name: 'Account: mario@rossi.it' });
+    expect(screen.queryByRole('button', { name: 'Esci' })).toBeNull();
+    fireEvent.click(account);
+    expect(account.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('navigation', { name: 'Menu' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Esci' })).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('button', { name: 'Esci' })).toBeNull();
+    expect(account.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('la sezione aperta è segnata nella barra', async () => {
+    mockApi({ 'GET /api/me': { status: 200, body: { user: AGENT } } });
+    renderAt('/');
+    const sections = await screen.findByRole('navigation', { name: 'Sezioni' });
+    const lead = sections.querySelector('a[href="/"]')!;
+    expect(lead.getAttribute('aria-current')).toBe('page');
+    expect(sections.querySelector('a[href="/impostazioni"]')!.getAttribute('aria-current')).toBeNull();
   });
 
   it('la pagina di accesso ha informativa e assistenza nel piè di pagina', async () => {

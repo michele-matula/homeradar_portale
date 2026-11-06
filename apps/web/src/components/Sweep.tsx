@@ -155,11 +155,14 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
 
   if (phone) {
     return (
-      <section className="card sweep">
-        <h2>Ricerche</h2>
-        <p>Le ricerche partono dal computer</p>
-        {status?.running && <p className="hint">{`${status.running.auto ? 'Giro automatico in corso' : 'Giro in corso'}: ${status.running.done} di ${status.running.total} ricerche`}</p>}
-        {!status?.running && last && <p className="hint">{lastLine(last)}</p>}
+      // Sul telefono non si avvia niente: solo lo stato del giro, in poco spazio.
+      <section className="card sweep sweep--phone" aria-label="Ricerche">
+        <p className="sweep__last">
+          {status?.running
+            ? `${status.running.auto ? 'Giro automatico in corso' : 'Giro in corso'}: ${status.running.done} di ${status.running.total} ricerche`
+            : last ? lastLine(last) : 'Nessun giro fatto finora'}
+        </p>
+        <p className="hint">Le ricerche partono dal computer</p>
       </section>
     );
   }
