@@ -122,7 +122,8 @@ describe('giro automatico', () => {
     fireEvent.click(save());
     await screen.findByText('Impostazioni salvate');
     expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ autoSweep: true, autoSweepHours: 4 });
-    await vi.waitFor(() => expect(sent).toEqual([{ type: 'autoChanged' }]));
+    // Il ping è di «I tuoi computer», per riconoscere questo computer.
+    await vi.waitFor(() => expect(sent.filter((m) => (m as { type: string }).type !== 'ping')).toEqual([{ type: 'autoChanged' }]));
   });
 
   it('salvare altro non disturba il connettore', async () => {
@@ -132,7 +133,7 @@ describe('giro automatico', () => {
     fireEvent.change(await screen.findByRole('spinbutton', { name: 'Online da almeno (giorni)' }), { target: { value: '60' } });
     fireEvent.click(save());
     await screen.findByText('Impostazioni salvate');
-    expect(sent).toEqual([]);
+    expect(sent.filter((m) => (m as { type: string }).type !== 'ping')).toEqual([]);
   });
 });
 

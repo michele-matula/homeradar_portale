@@ -38,7 +38,8 @@ async function serveImmobiliare(context: BrowserContext, body: () => string, del
   });
 }
 
-const paths = (s: FakeServer) => s.received.map((r) => r.path);
+// I controlli dell'avvio dal telefono (dopo il collegamento, con gli allarmi) non fanno parte del giro.
+const paths = (s: FakeServer) => s.received.map((r) => r.path).filter((p) => p !== '/connector/remote');
 const finished = (s: FakeServer) => s.received.find((r) => r.path.endsWith('/finish'));
 const waitFinish = (s: FakeServer) => expect.poll(() => finished(s), { timeout: 30_000 }).toBeTruthy();
 
@@ -56,15 +57,15 @@ test('collegamento e giro: lotto, esito e fine in ordine, con il token', async (
   await waitFinish(server);
   const sweepId = server.plan.sweepId;
   expect(paths(server)).toEqual(['/connector/link', '/connector/sweeps', '/connector/batches', '/connector/runs', `/connector/sweeps/${sweepId}/finish`]);
-  expect(server.received[0]!.body).toMatchObject({ code: 'cod', version: '0.2.0' });
-  const batch = server.received[2]!.body;
+  expect(server.received[0]!.body).toMatchObject({ code: 'cod', version: '0.3.0' });
+  const batch = server.received.find((r) => r.path === '/connector/batches')!.body;
   expect(batch).toMatchObject({ page: 1, sweepId });
   expect(batch.observations.length).toBeGreaterThan(0);
   for (const o of batch.observations) {
     expect(o.sellerType).toBe('private');
     expect(Object.keys(o).every((k) => ALLOWED.includes(k))).toBe(true);
   }
-  expect(server.received[3]!.body).toMatchObject({ outcome: 'complete', pages: 1 });
+  expect(server.received.find((r) => r.path === '/connector/runs')!.body).toMatchObject({ outcome: 'complete', pages: 1 });
   expect(finished(server)!.body).toEqual({ outcome: 'completed' });
   for (const r of server.received.slice(1)) expect(r.auth).toBe('Bearer tok');
 });

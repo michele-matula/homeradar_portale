@@ -193,7 +193,12 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: none; box-
 .linkbox__url { display: block; overflow-wrap: anywhere; font-size: 13px; }
 .linkbox__actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .devices { list-style: none; padding: 0; margin: 0; }
-.device { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); }
+.device { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid var(--border); }
+.device__top, .device__bottom { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.device__remote { display: inline-flex; align-items: center; gap: 6px; }
+.device__rename { max-width: 220px; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--muted); vertical-align: middle; }
+.dot--on { background: var(--ok); }
 .device:first-child { border-top: 0; }
 .badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--high); color: #fff; font-size: 12px; font-weight: 600; }
 
@@ -344,6 +349,11 @@ input:focus-visible, button:focus-visible, a:focus-visible { outline: none; box-
 .sweep__portals { list-style: none; margin: 0; padding: 0; font-size: 14px; }
 .sweep__reason { font-size: 14px; color: #7a3a05; }
 .sweep__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.sweep__online { margin: 4px 0; }
+.sweep__link { display: grid; gap: 6px; max-width: 360px; }
+.sweep__link h3 { margin: 4px 0 0; font-size: 1rem; }
+.sweep__link .hint { margin: 0; }
+.sweep__link button { justify-self: start; }
 
 /* Impostazioni */
 .settings { display: flex; flex-direction: column; }

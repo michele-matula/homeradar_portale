@@ -21,6 +21,11 @@ export function Privacy() {
           fermi dalla notifica o dal portale.
         </p>
         <p>
+          Puoi anche avviare il giro dal telefono, con «Avvia sul computer»: parte su un tuo computer acceso dove hai attivato «Avvia dal
+          telefono» nelle impostazioni, in una finestra ridotta a icona, e lo fermi dal telefono o dalla notifica sul computer. Con
+          «Avvia dal telefono» attivo il connettore chiede al portale ogni minuto se c'è un giro da fare; è spento finché non lo attivi.
+        </p>
+        <p>
           Su Immobiliare.it e Subito una piccola parte del connettore lavora dentro le pagine del sito, in ogni scheda: passa al resto del
           connettore i dati che il sito ha già caricato. Restano nella pagina, visibili anche agli script del sito, e il connettore li usa solo
           durante il giro, nella scheda del giro.
@@ -38,7 +43,8 @@ export function Privacy() {
 
         <h2>Cos'altro registra il portale</h2>
         <p>
-          I computer collegati (nome del browser e del sistema, versione del connettore, ultimo uso) e gli errori del portale e del connettore,
+          I computer collegati (nome del browser e del sistema, il nome che gli dai tu, versione del connettore, ultimo uso e, con «Avvia dal
+          telefono» attivo, l'ultimo contatto per sapere se sono accesi) e gli errori del portale e del connettore,
           ripuliti dai dati degli annunci e tenuti 90 giorni.
         </p>
 

@@ -9,6 +9,8 @@ export interface ConnectorTiming {
   /** Giro automatico: primo controllo dopo l'avvio del browser e intervallo dei controlli (minuti, per chrome.alarms). */
   autoStartDelayMs: number;
   autoEveryMin: number;
+  /** Controllo delle richieste dal telefono con «Avvia dal telefono» attivo (minuti, per chrome.alarms). */
+  remoteEveryMin: number;
   /** Oltre questa età un invio non si ritenta più da solo. */
   giveUpMs: number;
 }
@@ -20,6 +22,7 @@ export const NORMAL_TIMING: ConnectorTiming = {
   giveUpMs: 86_400_000,
   autoStartDelayMs: 120_000,
   autoEveryMin: 15,
+  remoteEveryMin: 1,
 };
 
 /** Solo per la build dei test end-to-end. */
@@ -30,6 +33,7 @@ export const FAST_TIMING: ConnectorTiming = {
   giveUpMs: 60_000,
   autoStartDelayMs: 2_000,
   autoEveryMin: 0.5,
+  remoteEveryMin: 0.5,
 };
 
 // Letterale `import.meta.env.WXT_SWEEP_FAST`: WXT lo sostituisce nella build, la build normale ha solo i tempi normali.

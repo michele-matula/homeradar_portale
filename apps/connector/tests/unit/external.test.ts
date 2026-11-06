@@ -15,6 +15,9 @@ function deps(o: Partial<ExternalDeps> = {}): ExternalDeps {
     queueState: vi.fn(async () => ({ pending: 2, stuck: false })),
     retryNow: vi.fn(),
     autoChanged: vi.fn(),
+    remoteChanged: vi.fn(),
+    deviceId: vi.fn(async () => 'd1'),
+    defaultName: vi.fn(async () => 'Chrome su Windows'),
     ...o,
   };
 }
@@ -34,7 +37,7 @@ describe('messaggi del portale', () => {
 
   it('ping: stato del connettore', async () => {
     expect(await handleExternal({ type: 'ping' }, ORIGIN, deps())).toEqual({
-      ok: true, data: { version: '0.1.0', linked: true, userId: 'u1', sweeping: false, pending: 2, stuck: false },
+      ok: true, data: { version: '0.1.0', linked: true, userId: 'u1', sweeping: false, pending: 2, stuck: false, deviceId: 'd1', defaultName: 'Chrome su Windows' },
     });
   });
 
@@ -54,7 +57,9 @@ describe('messaggi del portale', () => {
   it('link, start, stop', async () => {
     const d = deps();
     expect(await handleExternal({ type: 'link', code: 'abc' }, ORIGIN, d)).toEqual({ ok: true, data: null });
-    expect(d.link).toHaveBeenCalledWith('abc');
+    expect(d.link).toHaveBeenCalledWith('abc', undefined);
+    await handleExternal({ type: 'link', code: 'abc', name: 'PC di casa' }, ORIGIN, d);
+    expect(d.link).toHaveBeenLastCalledWith('abc', 'PC di casa');
     expect(await handleExternal({ type: 'startSweep' }, ORIGIN, d)).toEqual({ ok: true, data: { sweepId: 'g', total: 2, skipped: 1 } });
     expect(await handleExternal({ type: 'stopSweep' }, ORIGIN, d)).toEqual({ ok: true, data: null });
     expect(d.stop).toHaveBeenCalled();
@@ -81,5 +86,11 @@ describe('giro automatico cambiato dal portale', () => {
     const d = deps();
     await handleExternal({ type: 'autoChanged' }, 'https://altro.test', d);
     expect(d.autoChanged).not.toHaveBeenCalled();
+  });
+
+  it('remoteChanged: il connettore controlla subito', async () => {
+    const d = deps();
+    expect(await handleExternal({ type: 'remoteChanged' }, ORIGIN, d)).toEqual({ ok: true, data: null });
+    expect(d.remoteChanged).toHaveBeenCalledOnce();
   });
 });

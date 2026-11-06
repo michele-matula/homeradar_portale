@@ -1,5 +1,5 @@
 import '../zod-config';
-import type { SweepPlan } from '@homeradar/shared/api/connector';
+import type { HelloReply, LinkReply, RemotePoll, SweepPlan } from '@homeradar/shared/api/connector';
 import { NOT_LINKED } from '@homeradar/shared/api/connector-messages';
 import type { Portal } from '@homeradar/shared/shared/types';
 import { createAutoSweep, verifyNotice } from '../auto';
@@ -10,6 +10,7 @@ import { handleExternal } from '../external';
 import { createSendQueue } from '../queue';
 import { openQueueStore } from '../queue-store';
 import type { ReaderMessage } from '../reader';
+import { createRemote, stopFromBatch } from '../remote';
 import { createRunner, type RunnerState } from '../runner';
 import { stuckSignal } from '../stuck';
 import { TIMING } from '../timing';
@@ -24,7 +25,7 @@ const failure = (r: ServerReply) => new Error(errorOf(r) ?? (r.status === 0 ? UN
 export default defineBackground(() => {
   const version = browser.runtime.getManifest().version;
   const token = async () => ((await browser.storage.local.get('token')).token as string | undefined) ?? null;
-  const unlink = () => browser.storage.local.remove(['token', 'userId']);
+  const unlink = () => browser.storage.local.remove(['token', 'userId', 'deviceId']);
   const stuck = stuckSignal({
     load: async () => (await browser.storage.local.get('stuck')).stuck === true,
     save: (v) => browser.storage.local.set({ stuck: v }),
@@ -68,13 +69,26 @@ export default defineBackground(() => {
     if (!force && Date.now() - last < HELLO_EVERY_MS) return;
     const r = await client.post('/connector/hello', { name: await currentName(), version });
     if (r.status === 401) return unlink();
-    if (r.status >= 200 && r.status < 300) await browser.storage.local.set({ helloAt: Date.now() });
+    if (r.status >= 200 && r.status < 300) {
+      await browser.storage.local.set({ helloAt: Date.now() });
+      const reply = r.data as HelloReply | null;
+      // I connettori collegati prima della 0.3.0 non conoscono il loro id: lo imparano qui.
+      if (reply?.deviceId) await browser.storage.local.set({ deviceId: reply.deviceId });
+      if (reply?.remote) void remote.check().catch(() => {});
+    }
     flushErrors();
   }
 
   const queue = createSendQueue({
     store: openQueueStore(),
-    post: (path, body) => client.post(path, body),
+    async post(path, body) {
+      const r = await client.post(path, body);
+      // «Ferma» dal telefono: arriva con la risposta al lotto, che parte a ogni pagina. Solo per il giro in corso: lo stato
+      // si legge dallo storage e non dal runner, che potrebbe essere occupato proprio a mettere in coda questo lotto.
+      const current = ((await browser.storage.local.get('sweep')).sweep as RunnerState | undefined)?.sweep.id ?? null;
+      if (stopFromBatch(path, body, r.data, current)) void runner.stop().catch(() => {});
+      return r;
+    },
     now: Date.now,
     timing: TIMING,
     // Il timer basta se il worker resta acceso; l'allarme lo riaccende se nel frattempo si è spento.
@@ -121,8 +135,8 @@ export default defineBackground(() => {
       else await browser.storage.local.remove('sweep');
     },
     timing: TIMING,
-    async plan(auto) {
-      const r = await client.post('/connector/sweeps', auto ? { auto: true } : {});
+    async plan({ auto, remote: requestId }) {
+      const r = await client.post('/connector/sweeps', requestId ? { remote: requestId } : auto ? { auto: true } : {});
       if (r.status === 401) {
         await unlink();
         throw new Error(NOT_LINKED);
@@ -133,7 +147,8 @@ export default defineBackground(() => {
     enqueue: (o) => queue.enqueue(o),
     reportError,
     // Giro automatico finito: via la notifica d'avvio; se un portale ha chiesto una verifica, l'agente deve saperlo.
-    onEnd({ auto, blocked }) {
+    onEnd({ auto, remote: fromPhone, blocked }) {
+      if (fromPhone) void browser.notifications.clear('remote');
       if (!auto) return;
       void browser.notifications.clear('auto');
       if (!blocked.length) return;
@@ -176,8 +191,38 @@ export default defineBackground(() => {
     });
   }
 
-  async function link(code: string): Promise<void> {
-    const name = await currentName();
+  // Avvio dal telefono: con l'interruttore attivo si controlla ogni minuto, altrimenti con l'allarme del giro automatico.
+  const remote = createRemote({
+    linked: async () => (await token()) != null,
+    async poll() {
+      const r = await client.post('/connector/remote', {});
+      if (r.status === 401) {
+        await unlink();
+        return 'unlinked';
+      }
+      return r.status === 200 ? (r.data as RemotePoll) : null;
+    },
+    running: () => runner.running(),
+    start: (requestId) => {
+      void queue.flush({ force: true }).catch(() => {});
+      return runner.start({ remote: requestId });
+    },
+    stop: () => runner.stop(),
+    async setFast(on) {
+      const a = await browser.alarms.get('remote');
+      if (on && !a) await browser.alarms.create('remote', { periodInMinutes: TIMING.remoteEveryMin });
+      if (!on && a) await browser.alarms.clear('remote');
+    },
+    started() {
+      void browser.notifications.create('remote', {
+        type: 'basic', iconUrl: browser.runtime.getURL('/icon/128.png'), title: 'HomeRadar',
+        message: 'Giro avviato dal telefono: HomeRadar cerca i nuovi annunci in una finestra ridotta a icona', buttons: [{ title: 'Ferma' }],
+      });
+    },
+  });
+
+  async function link(code: string, chosen?: string): Promise<void> {
+    const name = chosen ?? (await currentName());
     // Il token che il browser aveva già: il server sostituisce quel dispositivo invece di lasciarlo come connettore muto.
     const previousToken = await token();
     let res: Response;
@@ -191,10 +236,11 @@ export default defineBackground(() => {
     }
     const data: unknown = await res.json().catch(() => null);
     if (res.status !== 201) throw failure({ status: res.status, data });
-    const { token: t, userId } = data as { token: string; userId: string };
-    await browser.storage.local.set({ token: t, userId });
+    const { token: t, userId, deviceId } = data as LinkReply;
+    await browser.storage.local.set({ token: t, userId, deviceId });
     flushErrors();
     void auto.reset();
+    void remote.check().catch(() => {});
   }
 
   browser.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
@@ -217,6 +263,9 @@ export default defineBackground(() => {
       queueState: () => queue.state(),
       retryNow: () => void queue.flush({ force: true }).catch(() => {}),
       autoChanged: () => void auto.reset().then(checkAuto).catch(() => {}),
+      remoteChanged: () => void remote.check().catch(() => {}),
+      deviceId: async () => ((await browser.storage.local.get('deviceId')).deviceId as string | undefined) ?? null,
+      defaultName: currentName,
     }).then(sendResponse);
     return true;
   });
@@ -246,6 +295,7 @@ export default defineBackground(() => {
     if (alarm.name === 'queue') void queue.flush().catch(() => {});
     if (alarm.name === 'hello') void hello(true).catch(() => {});
     if (alarm.name === 'auto' || alarm.name === 'auto-start') void checkAuto().catch(() => {});
+    if (alarm.name === 'remote' || alarm.name === 'auto') void remote.check().catch(() => {});
   });
   // Contatto quotidiano, anche senza giri: l'admin vede che il connettore c'è e con che versione.
   void browser.alarms.create('hello', { periodInMinutes: 24 * 60 });
@@ -258,7 +308,7 @@ export default defineBackground(() => {
     if (state === 'active') void checkAuto().catch(() => {});
   });
   browser.notifications.onButtonClicked.addListener((id) => {
-    if (id === 'auto') void runner.stop().catch(() => {});
+    if (id === 'auto' || id === 'remote') void runner.stop().catch(() => {});
   });
   browser.notifications.onClicked.addListener((id) => {
     if (id !== 'verify') return;
@@ -283,6 +333,8 @@ export default defineBackground(() => {
   browser.runtime.onStartup.addListener(() => {
     void queue.flush({ force: true }).catch(() => {});
     void hello(true).catch(() => {});
+    // Avvio dal telefono: il PC appena acceso risponde subito a una richiesta in attesa.
+    void remote.check().catch(() => {});
     // Il primo controllo del giro automatico aspetta che il browser abbia ripreso le schede: un allarme, il worker si spegne.
     void browser.alarms.create('auto-start', { when: Date.now() + TIMING.autoStartDelayMs });
   });

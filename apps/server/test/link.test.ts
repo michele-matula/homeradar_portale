@@ -27,7 +27,8 @@ describe('collegamento del connettore', () => {
     const u = await agent();
     const r = await link(await codeFor(u.cookie));
     expect(r.status).toBe(201);
-    const { token } = (await r.json()) as { token: string };
+    const { token, deviceId } = (await r.json()) as { token: string; deviceId: string };
+    expect(deviceId).toBe(await env.DB.prepare('SELECT id FROM devices').first<string>('id'));
     expect((await fetchConnector('POST', '/connector/sweeps', {}, bearer(token))).status).not.toBe(401);
     const list = await devices(u.cookie);
     expect(list).toHaveLength(1);
@@ -89,7 +90,7 @@ describe('collegamento del connettore', () => {
 describe('computer collegati', () => {
   it('il collegamento dice di quale account è il connettore', async () => {
     const u = await agent();
-    expect(await (await link(await codeFor(u.cookie))).json()).toEqual({ token: expect.any(String), userId: u.id });
+    expect(await (await link(await codeFor(u.cookie))).json()).toEqual({ token: expect.any(String), userId: u.id, deviceId: expect.any(String) });
   });
 
   it('scollegato a metà giro: il «Cerca» dal computer ricollegato parte subito', async () => {
@@ -129,7 +130,9 @@ describe('contatto del connettore', () => {
     const before = Date.now() - 60_000;
     await env.DB.prepare('UPDATE devices SET last_seen_at = ?').bind(before).run();
     const r = await fetchConnector('POST', '/connector/hello', { name: 'Edge · Windows', version: '0.4.0' }, bearer(token));
-    expect(r.status).toBe(204);
+    expect(r.status).toBe(200);
+    const id = await env.DB.prepare('SELECT id FROM devices').first<string>('id');
+    expect(await r.json()).toEqual({ deviceId: id, remote: false });
     const d = await env.DB.prepare('SELECT name, version, last_seen_at FROM devices').first<{ name: string; version: string; last_seen_at: number }>();
     expect(d).toMatchObject({ name: 'Edge · Windows', version: '0.4.0' });
     expect(d!.last_seen_at).toBeGreaterThan(before);
@@ -206,5 +209,62 @@ describe('codici di collegamento', () => {
     const r = await fetchApi('POST', '/api/devices/link-code', {}, { Cookie: u.cookie });
     expect(r.status).toBe(429);
     expect(await r.json()).toEqual({ error: 'Troppi codici di collegamento: riprova tra qualche minuto' });
+  });
+});
+
+describe('nome e «Avvia dal telefono»', () => {
+  const patch = (cookie: string, id: string, b: unknown) => fetchApi('PATCH', `/api/devices/${id}`, b, { Cookie: cookie });
+
+  it('il nome scelto resta anche quando il connettore aggiorna il suo', async () => {
+    const u = await agent();
+    const { token, deviceId } = (await (await link(await codeFor(u.cookie))).json()) as { token: string; deviceId: string };
+    const r = await patch(u.cookie, deviceId, { label: 'PC di casa' });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ id: deviceId, label: 'PC di casa', name: 'Chrome su Windows' });
+    await fetchConnector('POST', '/connector/hello', { name: 'Edge su Windows', version: '0.3.0' }, bearer(token));
+    expect((await devices(u.cookie))[0]).toMatchObject({ label: 'PC di casa', name: 'Edge su Windows' });
+    await patch(u.cookie, deviceId, { label: null });
+    expect((await devices(u.cookie))[0]).toMatchObject({ label: null });
+  });
+
+  it('nome vuoto: 400; computer di un altro: 404', async () => {
+    const u = await agent();
+    const other = await agent();
+    const { deviceId } = (await (await link(await codeFor(u.cookie))).json()) as { deviceId: string };
+    expect((await patch(u.cookie, deviceId, { label: '' })).status).toBe(400);
+    expect((await patch(other.cookie, deviceId, { label: 'Mio' })).status).toBe(404);
+  });
+
+  it('interruttore spento di default; acceso si vede nella lista e in hello', async () => {
+    const u = await agent();
+    const { token, deviceId } = (await (await link(await codeFor(u.cookie))).json()) as { token: string; deviceId: string };
+    expect((await devices(u.cookie))[0]).toMatchObject({ remote: false });
+    await patch(u.cookie, deviceId, { remote: true });
+    expect((await devices(u.cookie))[0]).toMatchObject({ remote: true });
+    const r = await fetchConnector('POST', '/connector/hello', { name: 'x', version: '0.3.0' }, bearer(token));
+    expect(await r.json()).toEqual({ deviceId, remote: true });
+  });
+
+  it('online solo con interruttore, connettore nuovo e contatto recente', async () => {
+    const u = await agent();
+    const { deviceId } = (await (await link(await codeFor(u.cookie))).json()) as { deviceId: string };
+    const set = (version: string, remote: number, polledAt: number | null) =>
+      env.DB.prepare('UPDATE devices SET version = ?, remote = ?, polled_at = ? WHERE id = ?').bind(version, remote, polledAt, deviceId).run();
+    await set('0.2.0', 1, Date.now());
+    expect((await devices(u.cookie))[0]).toMatchObject({ remoteReady: false, online: false });
+    await set('0.3.0', 1, Date.now());
+    expect((await devices(u.cookie))[0]).toMatchObject({ remoteReady: true, online: true });
+    await set('0.3.0', 1, Date.now() - 121_000);
+    expect((await devices(u.cookie))[0]).toMatchObject({ online: false });
+    await set('0.3.0', 0, Date.now());
+    expect((await devices(u.cookie))[0]).toMatchObject({ online: false });
+  });
+
+  it('il nome scelto compare anche negli errori del connettore', async () => {
+    const u = await agent();
+    const { token, deviceId } = (await (await link(await codeFor(u.cookie))).json()) as { token: string; deviceId: string };
+    await patch(u.cookie, deviceId, { label: 'PC ufficio' });
+    await fetchConnector('POST', '/connector/errors', { version: '0.3.0', errors: [{ message: 'boom', at: Date.now() }] }, bearer(token));
+    expect(await env.DB.prepare('SELECT device_name FROM errors').first('device_name')).toBe('PC ufficio');
   });
 });

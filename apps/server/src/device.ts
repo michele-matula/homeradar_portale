@@ -1,4 +1,5 @@
 import type { DeviceInfo } from '@homeradar/shared/api/connector';
+import { REMOTE_MIN_VERSION, REMOTE_ONLINE_MS, versionAtLeast } from '@homeradar/shared/core/remote';
 import type { Env } from './env';
 import { hashToken, newToken } from './crypto';
 import { fail, route, type Handler, type Route } from './http';
@@ -75,12 +76,41 @@ export async function redeemLinkCode(db: D1Database, code: string, now: number):
   return r?.user_id ?? null;
 }
 
-export async function listDevices(db: D1Database, userId: string): Promise<DeviceInfo[]> {
+/** Nome mostrato di un computer, in SQL (`d` = alias di `devices`): quello scelto dall'agente o l'automatico. */
+export const DEVICE_NAME = 'COALESCE(d.label, d.name)';
+
+export async function listDevices(db: D1Database, userId: string, now: number): Promise<DeviceInfo[]> {
   const { results } = await db
-    .prepare('SELECT id, name, created_at, last_seen_at FROM devices WHERE user_id = ? ORDER BY created_at')
+    .prepare('SELECT id, name, label, version, created_at, last_seen_at, remote, polled_at FROM devices WHERE user_id = ? ORDER BY created_at')
     .bind(userId)
-    .all<{ id: string; name: string; created_at: number; last_seen_at: number | null }>();
-  return results.map((d) => ({ id: d.id, name: d.name, createdAt: d.created_at, lastSeenAt: d.last_seen_at }));
+    .all<{ id: string; name: string; label: string | null; version: string | null; created_at: number; last_seen_at: number | null; remote: number; polled_at: number | null }>();
+  return results.map((d) => {
+    const remoteReady = versionAtLeast(d.version, REMOTE_MIN_VERSION);
+    return {
+      id: d.id, name: d.name, label: d.label, createdAt: d.created_at, lastSeenAt: d.last_seen_at,
+      remote: d.remote === 1, remoteReady,
+      online: d.remote === 1 && remoteReady && d.polled_at != null && now - d.polled_at < REMOTE_ONLINE_MS,
+    };
+  });
+}
+
+/** Rinomina (null = nome automatico) e «Avvia dal telefono»; false se il computer non è dell'utente. */
+export async function updateDevice(db: D1Database, userId: string, id: string, patch: { label?: string | null; remote?: boolean }): Promise<boolean> {
+  const sets: string[] = [];
+  const values: (string | number | null)[] = [];
+  if (patch.label !== undefined) {
+    sets.push('label = ?');
+    values.push(patch.label);
+  }
+  if (patch.remote !== undefined) {
+    sets.push('remote = ?');
+    values.push(patch.remote ? 1 : 0);
+  }
+  // Senza campi si controlla solo che il computer sia suo.
+  const r = await db.prepare(`UPDATE devices SET ${sets.length ? sets.join(', ') : 'id = id'} WHERE id = ? AND user_id = ? RETURNING id`)
+    .bind(...values, id, userId)
+    .first();
+  return r != null;
 }
 
 /** Scollega un dispositivo dell'utente; false se non è suo. I suoi giri restano, senza dispositivo. */

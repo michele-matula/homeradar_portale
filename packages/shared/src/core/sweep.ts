@@ -195,6 +195,10 @@ export function progressOf(s: SweepState, newCount: number): SweepProgress {
     newCount,
     drops: s.drops.length,
     auto: false,
+    remote: false,
+    deviceName: null,
+    stopRequested: false,
+    canStop: true,
   };
 }
 

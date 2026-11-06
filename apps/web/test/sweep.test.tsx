@@ -6,8 +6,8 @@ import { Sweep } from '../src/components/Sweep';
 import type { ConnectorPort } from '../src/connector';
 import { mockApi, type Routes } from './helpers';
 
-const STATE: ConnectorState = { version: '0.1.0', linked: true, userId: 'u1', sweeping: false, pending: 0, stuck: false };
-const IDLE = { 'GET /api/sweep': { status: 200, body: { running: null, last: null } } };
+const STATE: ConnectorState = { version: '0.3.0', linked: true, userId: 'u1', sweeping: false, pending: 0, stuck: false, deviceId: 'd1', defaultName: 'Chrome su Windows' };
+const IDLE = { 'GET /api/sweep': { status: 200, body: { running: null, last: null, remote: null, computers: { enabled: 0, online: [] } } } };
 
 /** Connettore finto: registra i messaggi e risponde con `reply`, o null se assente. */
 function fakeConnector(reply: (m: PortalMessage, n: number) => ConnectorReply<unknown> | null) {
@@ -31,16 +31,32 @@ function api(extra: Routes = {}) {
 afterEach(() => vi.useRealTimers());
 
 describe('«Cerca» dal portale', () => {
-  it('non collegato: chiede il codice, collega il connettore e parte', async () => {
+  it('non collegato: chiede il nome del computer, collega il connettore e parte', async () => {
     const calls = api();
     const c = fakeConnector((m) => (m.type === 'ping' ? ok({ ...STATE, linked: false }) : m.type === 'startSweep' ? ok({ sweepId: 'g', total: 3, skipped: 0 }) : ok(null)));
     render(<Sweep userId="u1" connector={c.port} phone={false} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
+    const name = (await screen.findByLabelText('Come lo chiami?')) as HTMLInputElement;
+    expect(name.value).toBe('Chrome su Windows');
+    expect(c.types()).not.toContain('link');
+    fireEvent.change(name, { target: { value: 'PC di casa' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Collega' }));
     await vi.waitFor(() => expect(c.types()).toContain('startSweep'));
     // Il primo ping è quello all'apertura; dopo l'avvio ne parte un altro.
     expect(c.types().slice(1, 4)).toEqual(['ping', 'link', 'startSweep']);
-    expect(c.sent.find((m) => m.type === 'link')).toEqual({ type: 'link', code: 'cod1' });
+    expect(c.sent.find((m) => m.type === 'link')).toEqual({ type: 'link', code: 'cod1', name: 'PC di casa' });
     expect(calls.some((x) => x.method === 'POST' && x.path === '/api/devices/link-code')).toBe(true);
+  });
+
+  it('connettore vecchio (0.2.0): collega senza chiedere il nome, che non saprebbe ricevere', async () => {
+    api();
+    const old = { version: '0.2.0', linked: false, userId: null, sweeping: false, pending: 0, stuck: false };
+    const c = fakeConnector((m) => (m.type === 'ping' ? ok(old as unknown as ConnectorState) : m.type === 'startSweep' ? ok({ sweepId: 'g', total: 1, skipped: 0 }) : ok(null)));
+    render(<Sweep userId="u1" connector={c.port} phone={false} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
+    await vi.waitFor(() => expect(c.types()).toContain('startSweep'));
+    expect(screen.queryByLabelText('Come lo chiami?')).toBeNull();
+    expect(c.sent.find((m) => m.type === 'link')).toEqual({ type: 'link', code: 'cod1' });
   });
 
   it('connettore collegato a un altro account: lo ricollega a questo', async () => {
@@ -48,6 +64,7 @@ describe('«Cerca» dal portale', () => {
     const c = fakeConnector((m) => (m.type === 'ping' ? ok({ ...STATE, userId: 'altro' }) : m.type === 'startSweep' ? ok({ sweepId: 'g', total: 1, skipped: 0 }) : ok(null)));
     render(<Sweep userId="u1" connector={c.port} phone={false} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Cerca' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Collega' }));
     await vi.waitFor(() => expect(c.types()).toContain('startSweep'));
     expect(c.types().slice(1, 4)).toEqual(['ping', 'link', 'startSweep']);
   });
@@ -95,7 +112,7 @@ describe('«Cerca» dal portale', () => {
     api();
     const c = fakeConnector(() => ok(STATE));
     render(<Sweep userId="u1" connector={c.port} phone />);
-    expect(await screen.findByText('Le ricerche partono dal computer')).toBeTruthy();
+    expect(await screen.findByText(/attiva «Avvia dal telefono» su un tuo computer/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Cerca' })).toBeNull();
     expect(c.sent).toEqual([]);
   });
@@ -221,7 +238,8 @@ describe('avanzamento del giro', () => {
 });
 
 describe('computer collegati', () => {
-  const PC = { id: 'd1', name: 'Chrome su Windows', createdAt: 1, lastSeenAt: null };
+  const PC = { id: 'd1', name: 'Chrome su Windows', label: null, createdAt: 1, lastSeenAt: null, remote: false, remoteReady: true, online: false };
+  const absent = () => fakeConnector(() => null).port;
 
   it('scollega un computer', async () => {
     let list = [PC];
@@ -232,7 +250,7 @@ describe('computer collegati', () => {
         return { status: 204 };
       },
     });
-    render(<Devices />);
+    render(<Devices connector={absent()} />);
     expect(await screen.findByText('Chrome su Windows')).toBeTruthy();
     expect(screen.getByText(/ultimo uso mai/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Scollega' }));
@@ -240,9 +258,77 @@ describe('computer collegati', () => {
     expect(calls.some((c) => c.method === 'DELETE' && c.path === '/api/devices/d1')).toBe(true);
   });
 
+  it('nome scelto, online e nome automatico sotto; «(questo computer)» dal ping', async () => {
+    mockApi({ 'GET /api/devices': { status: 200, body: [{ ...PC, label: 'PC di casa', remote: true, online: true }] } });
+    render(<Devices connector={fakeConnector(() => ok(STATE)).port} />);
+    expect(await screen.findByText('PC di casa')).toBeTruthy();
+    expect(screen.getByText(/Online ora/)).toBeTruthy();
+    expect(screen.getByText(/Chrome su Windows/)).toBeTruthy();
+    expect(await screen.findByText('(questo computer)')).toBeTruthy();
+  });
+
+  it('abilitato ma non raggiungibile: lo dice', async () => {
+    mockApi({ 'GET /api/devices': { status: 200, body: [{ ...PC, remote: true, online: false, lastSeenAt: Date.UTC(2026, 10, 6, 8, 12) }] } });
+    render(<Devices connector={absent()} />);
+    expect(await screen.findByText(/Non raggiungibile · visto l'ultima volta/)).toBeTruthy();
+  });
+
+  it('connettore vecchio: niente interruttore, invito ad aggiornare', async () => {
+    mockApi({ 'GET /api/devices': { status: 200, body: [{ ...PC, remoteReady: false }] } });
+    render(<Devices connector={absent()} />);
+    expect(await screen.findByText(/Aggiorna il connettore per usare l'avvio dal telefono/)).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: 'Avvia dal telefono' })).toBeNull();
+  });
+
+  it('interruttore: salva e avvisa il connettore di questo computer', async () => {
+    let list = [PC];
+    const calls = mockApi({
+      'GET /api/devices': () => ({ status: 200, body: list }),
+      'PATCH /api/devices/d1': (b) => {
+        list = [{ ...PC, ...(b as object) }];
+        return { status: 200, body: list[0] };
+      },
+    });
+    const c = fakeConnector(() => ok(STATE));
+    render(<Devices connector={c.port} />);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Avvia dal telefono' }));
+    await vi.waitFor(() => expect(c.types()).toContain('remoteChanged'));
+    expect(calls.find((x) => x.method === 'PATCH')).toMatchObject({ path: '/api/devices/d1', body: { remote: true } });
+    expect(((await screen.findByRole('checkbox', { name: 'Avvia dal telefono' })) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('rinomina; vuoto torna al nome automatico', async () => {
+    const calls = mockApi({
+      'GET /api/devices': { status: 200, body: [PC] },
+      'PATCH /api/devices/d1': { status: 200, body: PC },
+    });
+    render(<Devices connector={absent()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rinomina' }));
+    const input = screen.getByLabelText('Nuovo nome');
+    fireEvent.change(input, { target: { value: 'PC ufficio' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await vi.waitFor(() => expect(calls.filter((x) => x.method === 'PATCH')).toHaveLength(1));
+    expect(calls.find((x) => x.method === 'PATCH')!.body).toEqual({ label: 'PC ufficio' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Rinomina' }));
+    const again = screen.getByLabelText('Nuovo nome');
+    fireEvent.change(again, { target: { value: '  ' } });
+    fireEvent.keyDown(again, { key: 'Enter' });
+    await vi.waitFor(() => expect(calls.filter((x) => x.method === 'PATCH')).toHaveLength(2));
+    expect(calls.filter((x) => x.method === 'PATCH')[1]!.body).toEqual({ label: null });
+  });
+
+  it('Esc annulla la rinomina', async () => {
+    const calls = mockApi({ 'GET /api/devices': { status: 200, body: [PC] } });
+    render(<Devices connector={absent()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rinomina' }));
+    fireEvent.keyDown(screen.getByLabelText('Nuovo nome'), { key: 'Escape' });
+    expect(screen.queryByLabelText('Nuovo nome')).toBeNull();
+    expect(calls.some((x) => x.method === 'PATCH')).toBe(false);
+  });
+
   it('nessun computer: niente elenco', async () => {
     mockApi({ 'GET /api/devices': { status: 200, body: [] } });
-    const { container } = render(<Devices />);
+    const { container } = render(<Devices connector={absent()} />);
     await vi.waitFor(() => expect(container.textContent).toBe(''));
   });
 });

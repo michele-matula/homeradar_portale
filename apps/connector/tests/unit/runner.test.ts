@@ -258,10 +258,19 @@ describe('giro automatico nel runner', () => {
     const plan = vi.fn(async (): Promise<SweepPlan> => ({ sweepId: SWEEP_ID, searches: [IMM], skipped: 0 }));
     const h = harness({ plan });
     await h.runner.start({ auto: true });
-    expect(plan).toHaveBeenLastCalledWith(true);
+    expect(plan).toHaveBeenLastCalledWith({ auto: true });
     await h.runner.stop();
     await h.runner.start();
-    expect(plan).toHaveBeenLastCalledWith(false);
+    expect(plan).toHaveBeenLastCalledWith({ auto: false });
+  });
+
+  it('giro dal telefono: il piano porta la richiesta e la fine lo dice', async () => {
+    const plan = vi.fn(async (): Promise<SweepPlan> => ({ sweepId: SWEEP_ID, searches: [IMM], skipped: 0 }));
+    const h = harness({ plan });
+    await h.runner.start({ remote: 'r1' });
+    expect(plan).toHaveBeenLastCalledWith({ auto: false, remote: 'r1' });
+    await h.runner.stop();
+    expect(h.deps.onEnd).toHaveBeenCalledWith({ auto: false, remote: true, blocked: [] });
   });
 
   it('non dovuto: nessuna finestra, e il connettore sa quando richiedere', async () => {
@@ -276,13 +285,13 @@ describe('giro automatico nel runner', () => {
     await h.runner.page(70, msg(page('immobiliare', { results: 0, privates: 0, blocked: true }), []));
     await h.fire();
     await h.runner.page(70, msg(page('subito'), [obs({ portal: 'subito', portalId: 5, url: 'https://www.subito.it/x/5.htm' })]));
-    expect(h.deps.onEnd).toHaveBeenCalledWith({ auto: true, blocked: ['immobiliare'] });
+    expect(h.deps.onEnd).toHaveBeenCalledWith({ auto: true, remote: false, blocked: ['immobiliare'] });
   });
 
   it('un giro manuale fermato: non automatico, nessuna verifica', async () => {
     const h = harness();
     await h.runner.start();
     await h.runner.stop();
-    expect(h.deps.onEnd).toHaveBeenCalledWith({ auto: false, blocked: [] });
+    expect(h.deps.onEnd).toHaveBeenCalledWith({ auto: false, remote: false, blocked: [] });
   });
 });

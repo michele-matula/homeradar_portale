@@ -3,6 +3,7 @@ import { fail, json, readBody, type Route } from '../http';
 import { agentLeads, dueRecallCount, leadsVisit, setLeadState, splitLead } from '../leads';
 import { userRoute } from '../session';
 import { getSettings, saveSettings } from '../settings';
+import { cancelRemote, requestRemote, stopRemote } from '../remote';
 import { sweepStatus } from '../sweeps';
 
 /** Rotte dell'agente: lead, impostazioni, giro. Ogni dato privato è quello dell'utente della sessione. */
@@ -39,4 +40,15 @@ export const leadRoutes: Route[] = [
   }),
 
   userRoute('GET', '/api/sweep', async (_req, env, _p, { user, now }) => json(await sweepStatus(env.DB, user, now))),
+
+  // Avvio dal telefono: la richiesta la prende il primo computer abilitato che controlla.
+  userRoute('POST', '/api/sweep/remote', async (_req, env, _p, { user, now }) => requestRemote(env.DB, user, now)),
+  userRoute('DELETE', '/api/sweep/remote', async (_req, env, _p, { user }) => {
+    await cancelRemote(env.DB, user.id);
+    return new Response(null, { status: 204 });
+  }),
+  userRoute('POST', '/api/sweep/stop', async (_req, env, _p, { user }) => {
+    await stopRemote(env.DB, user.id);
+    return new Response(null, { status: 204 });
+  }),
 ];

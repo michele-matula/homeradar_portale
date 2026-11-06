@@ -28,6 +28,8 @@ export interface RunnerState {
   newestId: number | null;
   /** Partito da solo (giro automatico): alla fine si avvisa con una notifica. */
   auto?: boolean;
+  /** Avviato dal telefono: la notifica d'avvio si chiude alla fine. */
+  remote?: boolean;
 }
 
 export interface RunnerDeps {
@@ -44,13 +46,13 @@ export interface RunnerDeps {
   loadState(): Promise<RunnerState | null>;
   saveState(s: RunnerState | null): Promise<void>;
   timing: Pick<ConnectorTiming, 'pageTimeoutMs' | 'pauseMs'>;
-  /** Piano dal server; lancia un Error col messaggio del server. */
-  plan(auto: boolean): Promise<SweepPlan>;
+  /** Piano dal server (`remote`: id della richiesta dal telefono); lancia un Error col messaggio del server. */
+  plan(opts: { auto: boolean; remote?: string }): Promise<SweepPlan>;
   enqueue(o: Outgoing): Promise<void>;
   /** Errore del giro per il server (finestra che non si apre, ricerca non riuscita); non aspetta e non lancia. */
   reportError(message: string, context?: string): void;
-  /** Giro finito, in qualunque modo: se era automatico e quali portali hanno chiesto una verifica. Non aspetta e non lancia. */
-  onEnd(e: { auto: boolean; blocked: Portal[] }): void;
+  /** Giro finito, in qualunque modo: se era automatico o dal telefono e quali portali hanno chiesto una verifica. Non aspetta e non lancia. */
+  onEnd(e: { auto: boolean; remote: boolean; blocked: Portal[] }): void;
 }
 
 type PageMessage = Extract<ReaderMessage, { type: 'page' }>;
@@ -154,7 +156,7 @@ export function createRunner(d: RunnerDeps) {
     await enqueueAll([...settledRuns(cur.sweep, final), finishFor(cur.sweep.id, final.status as SweepOutcome)]);
     await d.saveState(null);
     if (closeWindow) await d.closeWindow(cur.windowId).catch(() => {});
-    d.onEnd({ auto: cur.auto === true, blocked: PORTALS.filter((p) => final.halted[p] === 'blocked') });
+    d.onEnd({ auto: cur.auto === true, remote: cur.remote === true, blocked: PORTALS.filter((p) => final.halted[p] === 'blocked') });
   }
 
   /** Annunci della pagina attesa: si tengono fino al suo riassunto. */
@@ -166,10 +168,10 @@ export function createRunner(d: RunnerDeps) {
   }
 
   return {
-    start: ({ auto = false }: { auto?: boolean } = {}) => serial(async (): Promise<SweepStarted> => {
+    start: ({ auto = false, remote }: { auto?: boolean; remote?: string } = {}) => serial(async (): Promise<SweepStarted> => {
       if (await load()) throw new Error(SWEEP_RUNNING);
       generation++;
-      const plan = await d.plan(auto);
+      const plan = await d.plan(remote ? { auto, remote } : { auto });
       if (!plan.sweepId || !plan.searches.length) {
         return { sweepId: null, total: 0, skipped: plan.skipped, ...(plan.nextCheckAt != null ? { nextCheckAt: plan.nextCheckAt } : {}) };
       }
@@ -187,7 +189,7 @@ export function createRunner(d: RunnerDeps) {
         throw err;
       }
       const { windowId, tabId } = ids;
-      st = { sweep, windowId, tabId, awaiting: true, expectedUrl, previousUrl: null, pageObs: [], newestId: null, auto };
+      st = { sweep, windowId, tabId, awaiting: true, expectedUrl, previousUrl: null, pageObs: [], newestId: null, auto, ...(remote ? { remote: true } : {}) };
       stopKeepAlive = d.keepAlive();
       await d.saveState(st);
       armTimeout();

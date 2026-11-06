@@ -4,6 +4,7 @@ import type {
 import type { SearchErrorReason } from '@homeradar/shared/core/sweep';
 import type { Portal, SearchSpec, SweepOutcome } from '@homeradar/shared/shared/types';
 import { ERROR_TTL_MS } from './errors';
+import { DEVICE_NAME } from './device';
 
 const DAY_MS = 86_400_000;
 /** Oltre questo silenzio un connettore, o un agente, è da guardare. */
@@ -47,9 +48,10 @@ interface SweepRow {
   searches: number;
   problems: number;
   auto: number;
+  remote: number;
 }
 
-const SWEEP_COLUMNS = `s.id, s.user_id, s.started_at, s.finished_at, s.outcome, s.auto, d.name AS device_name,
+const SWEEP_COLUMNS = `s.id, s.user_id, s.started_at, s.finished_at, s.outcome, s.auto, s.remote, ${DEVICE_NAME} AS device_name,
   (SELECT COUNT(*) FROM search_runs r WHERE r.sweep_id = s.id) AS searches,
   (SELECT COUNT(*) FROM search_runs r WHERE r.sweep_id = s.id AND r.status IN ('blocked', 'error')) AS problems
   FROM sweeps s LEFT JOIN devices d ON d.id = s.device_id`;
@@ -57,6 +59,7 @@ const SWEEP_COLUMNS = `s.id, s.user_id, s.started_at, s.finished_at, s.outcome, 
 const toSweep = (s: SweepRow): ControlSweep => ({
   id: s.id, startedAt: s.started_at, finishedAt: s.finished_at, outcome: s.outcome, deviceName: s.device_name, searches: s.searches, problems: s.problems,
   auto: s.auto === 1,
+  remote: s.remote === 1,
 });
 
 /** Righe di «Controllo» (o di un solo agente): un numero fisso di query, qualunque sia il numero di agenti. */
@@ -69,7 +72,7 @@ export async function controlRows(db: D1Database, now: number, userId?: string):
   if (!users.length) return [];
   const ids = JSON.stringify(users.map((u) => u.id));
   const [devices, lastSweeps, recent, errors] = await db.batch([
-    db.prepare(`SELECT d.id, d.user_id, d.name, d.version, d.created_at, d.last_seen_at,
+    db.prepare(`SELECT d.id, d.user_id, ${DEVICE_NAME} AS name, d.version, d.created_at, d.last_seen_at,
         (SELECT MAX(s.finished_at) FROM sweeps s WHERE s.device_id = d.id AND s.outcome = 'completed'
           AND NOT EXISTS (SELECT 1 FROM search_runs r WHERE r.sweep_id = s.id AND r.status IN ('blocked', 'error'))) AS last_good
       FROM devices d WHERE d.user_id IN (SELECT value FROM json_each(?)) ORDER BY d.created_at`).bind(ids),

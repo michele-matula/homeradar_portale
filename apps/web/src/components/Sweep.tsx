@@ -1,42 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CONNECTOR_STORE_URL, type ConnectorState, type SweepStarted } from '@homeradar/shared/api/connector-messages';
+import { REMOTE_MIN_VERSION, versionAtLeast } from '@homeradar/shared/core/remote';
 import { startOfLocalDay } from '@homeradar/shared/core/recall';
-import { formatDateTime } from '@homeradar/shared/shared/format';
-import { PORTAL_SITES, PORTALS, type Portal, type PortalSweepOutcome, type SweepOutcome, type SweepResult, type SweepStatus } from '@homeradar/shared/shared/types';
+import { PORTAL_SITES, PORTALS, type SweepStatus } from '@homeradar/shared/shared/types';
 import { api, errorText } from '../api';
+import { RemoteSweep } from './RemoteSweep';
+import { lastLine, minutes, OUTCOME_TITLES, reasons } from './sweep-text';
 import { chromeConnector, isPhone, type ConnectorPort } from '../connector';
 
 /** Avanzamento e connettore si rileggono ogni tanto mentre il giro corre, il connettore non risponde o ha pagine da inviare. */
 const POLL_MS = 3_000;
-
-const OUTCOMES: Record<SweepOutcome, string> = { completed: 'completato', partial: 'completato in parte', stopped: 'fermato', interrupted: 'interrotto' };
-const OUTCOME_TITLES: Record<SweepOutcome, string> = {
-  completed: 'Giro completato', partial: 'Giro completato in parte', stopped: 'Giro fermato', interrupted: 'Giro interrotto',
-};
-const minutes = (ms: number) => `${Math.max(1, Math.round(ms / 60_000))} min`;
-
-function portalReason(p: Portal, o: PortalSweepOutcome): string | null {
-  const site = PORTAL_SITES[p];
-  if (o === 'blocked') return `${site} ha chiesto una verifica: aprilo tu e riprova domani.`;
-  if (o === 'capped') return `${site}: raggiunto il limite di pagine, alcune ricerche sono incomplete.`;
-  if (o === 'error') return `${site} non ha risposto ad alcune pagine.`;
-  return null;
-}
-
-/** Motivi per cui il giro non è andato del tutto bene, per portale, più le ricerche che il portale non riconosce. */
-function reasons(r: SweepResult): string[] {
-  const out = PORTALS.flatMap((p) => {
-    const s = r.portals[p];
-    const why = s && portalReason(p, s.outcome);
-    return why ? [why] : [];
-  });
-  if (r.notFound.length) out.push(`Non trovati: ${r.notFound.join(', ')}.`);
-  return out;
-}
-
-// Durante il giro il server conta gli annunci nuovi; alla fine i lead nuovi (stesso immobile su più portali = uno).
-const lastLine = (last: SweepResult) =>
-  `Ultimo giro: ${formatDateTime(last.startedAt)} · ${OUTCOMES[last.outcome]} · ${last.newCount} nuovi lead${last.auto ? ' · automatico' : ''}`;
 
 /** Giro delle ricerche: «Cerca» e «Ferma» (il connettore lo fa sul computer dell'agente), avanzamento e riepilogo. */
 export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), hasZone = true, onLinked, onFinished, onShowNew, onStatus }: {
@@ -60,6 +33,8 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Nome del computer da collegare, mentre l'agente lo sceglie; null fuori dal collegamento. */
+  const [naming, setNaming] = useState<string | null>(null);
   // Il riepilogo si mostra per un giro finito mentre la pagina era aperta, finché l'agente non lo chiude.
   const [openedAt] = useState(Date.now);
   const [dismissed, setDismissed] = useState<number | null>(null);
@@ -98,23 +73,26 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
 
   const waiting = !phone && conn === null;
   const pending = conn?.pending ?? 0;
+  // Richiesta dal telefono in attesa di un computer: si rilegge finché un computer la prende o scade.
+  const asked = status?.remote?.state === 'waiting';
   useEffect(() => {
-    if (!hasZone || (!running && !waiting && pending === 0)) return;
+    if (!hasZone || (!running && !waiting && !asked && pending === 0)) return;
     const h = setInterval(() => {
-      if (running) void refresh();
+      if (running || asked) void refresh();
       if (!phone) void ping();
     }, POLL_MS);
     return () => clearInterval(h);
-  }, [running, waiting, pending, refresh, ping, phone, hasZone]);
+  }, [running, waiting, asked, pending, refresh, ping, phone, hasZone]);
 
-  async function linkNow(): Promise<void> {
+  async function linkNow(name?: string): Promise<void> {
     const { code } = await api<{ code: string }>('POST', '/api/devices/link-code', {});
-    const r = await connector.send<null>({ type: 'link', code });
+    const r = await connector.send<null>(name ? { type: 'link', code, name } : { type: 'link', code });
     if (!r) throw new Error('Il connettore non risponde');
     if (!r.ok) throw new Error(r.error);
     onLinked?.();
   }
 
+  /** «Cerca»: se il connettore non è collegato a questo account, prima si chiede il nome del computer. */
   async function start(): Promise<void> {
     setBusy(true);
     setError(null);
@@ -123,23 +101,49 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
       const state = await connector.send<ConnectorState>({ type: 'ping' });
       if (!state?.ok) throw new Error('Il connettore non risponde');
       // Non collegato, o collegato a un altro account (PC condiviso, cambio d'account): si collega a questo.
-      if (!state.data.linked || state.data.userId !== userId) await linkNow();
-      let r = await connector.send<SweepStarted>({ type: 'startSweep' });
-      // Collegamento revocato dal portale o token perso: si ricollega una volta sola.
-      if (r && !r.ok && r.notLinked) {
-        await linkNow();
-        r = await connector.send<SweepStarted>({ type: 'startSweep' });
+      if (!state.data.linked || state.data.userId !== userId) {
+        // Un connettore più vecchio dell'avvio dal telefono rifiuterebbe il nome: si collega come prima.
+        if (!versionAtLeast(state.data.version, REMOTE_MIN_VERSION)) await linkNow();
+        else {
+          setNaming(state.data.defaultName ?? '');
+          return;
+        }
       }
-      if (!r) throw new Error('Il connettore non risponde');
-      if (!r.ok) throw new Error(r.error);
-      if (r.data.sweepId === null) setInfo("Dati già aggiornati da meno di un'ora");
-      await refresh();
-      await ping();
+      await run();
     } catch (e) {
       setError(errorText(e));
     } finally {
       setBusy(false);
     }
+  }
+
+  /** «Collega»: collega con il nome scelto, poi parte il giro. */
+  async function linkAndStart(name: string): Promise<void> {
+    setBusy(true);
+    setError(null);
+    try {
+      await linkNow(name.trim() || undefined);
+      setNaming(null);
+      await run();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function run(): Promise<void> {
+    let r = await connector.send<SweepStarted>({ type: 'startSweep' });
+    // Collegamento revocato dal portale o token perso: si ricollega una volta sola (il nome resta quello automatico).
+    if (r && !r.ok && r.notLinked) {
+      await linkNow();
+      r = await connector.send<SweepStarted>({ type: 'startSweep' });
+    }
+    if (!r) throw new Error('Il connettore non risponde');
+    if (!r.ok) throw new Error(r.error);
+    if (r.data.sweepId === null) setInfo("Dati già aggiornati da meno di un'ora");
+    await refresh();
+    await ping();
   }
 
   async function stop(): Promise<void> {
@@ -153,17 +157,25 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
   const last = status?.last ?? null;
   const now = Date.now();
 
-  if (phone) {
+  const installHint = (
+    <p>
+      Connettore non trovato. Se non l'hai installato,{' '}
+      <a href={CONNECTOR_STORE_URL} target="_blank" rel="noreferrer">
+        installalo dal Chrome Web Store
+      </a>
+      ; se sei in una finestra in incognito, apri il portale in una finestra normale. Questa pagina se ne accorge da sola.
+    </p>
+  );
+  // Sul telefono, o su un computer senza connettore, il giro si chiede a un altro computer dell'agente.
+  if (phone || conn === null) {
     return (
-      // Sul telefono non si avvia niente: solo lo stato del giro, in poco spazio.
-      <section className="card sweep sweep--phone" aria-label="Ricerche">
-        <p className="sweep__last">
-          {status?.running
-            ? `${status.running.auto ? 'Giro automatico in corso' : 'Giro in corso'}: ${status.running.done} di ${status.running.total} ricerche`
-            : last ? lastLine(last) : 'Nessun giro fatto finora'}
-        </p>
-        <p className="hint">Le ricerche partono dal computer</p>
-      </section>
+      <RemoteSweep
+        status={status}
+        refresh={refresh}
+        openedAt={openedAt}
+        installHint={phone ? undefined : installHint}
+        onShowNew={onShowNew}
+      />
     );
   }
 
@@ -224,18 +236,26 @@ export function Sweep({ userId, connector = chromeConnector, phone = isPhone(), 
   return (
     <section className="card sweep">
       <h2>Ricerche</h2>
-      {conn === null && (
-        <p>
-          Connettore non trovato. Se non l'hai installato,{' '}
-          <a href={CONNECTOR_STORE_URL} target="_blank" rel="noreferrer">
-            installalo dal Chrome Web Store
-          </a>
-          ; se sei in una finestra in incognito, apri il portale in una finestra normale. Questa pagina se ne accorge da sola.
-        </p>
-      )}
       <p className="sweep__last">{last ? lastLine(last) : 'Nessun giro fatto finora'}</p>
       {last && reasons(last).map((r) => <p key={r} className="sweep__reason">{r}</p>)}
-      {conn && (
+      {conn && naming !== null && (
+        <form
+          className="sweep__link"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void linkAndStart(naming);
+          }}
+        >
+          <h3>Collega questo computer</h3>
+          <label htmlFor="device-name">Come lo chiami?</label>
+          <input id="device-name" value={naming} maxLength={60} onChange={(e) => setNaming(e.target.value)} />
+          <p className="hint">es. PC di casa, PC ufficio</p>
+          <button type="submit" className="btn btn--primary" disabled={busy}>
+            Collega
+          </button>
+        </form>
+      )}
+      {conn && naming === null && (
         <div className="sweep__row">
           {!today && <span>Giro di oggi da fare</span>}
           <button type="button" className={today ? 'btn' : 'btn btn--primary'} disabled={busy} onClick={() => void start()}>

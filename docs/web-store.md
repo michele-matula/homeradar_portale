@@ -25,17 +25,19 @@ Testi da incollare nella dashboard sviluppatore (https://chrome.google.com/webst
 
 **Versione 0.2.0** (giro automatico): permesso nuovo `idle`, descrizioni e scopo unico aggiornati. Caricando il pacchetto, lo Store la manda di nuovo in revisione.
 
+**Versione 0.3.0** (avvio dal telefono): nessun permesso nuovo; scopo unico e motivi di `alarms` e `notifications` aggiornati. Nuova revisione dello Store.
+
 ## Pratiche sulla privacy
 
-**Scopo unico:** cercare, quando l'agente lo chiede dal portale HomeRadar o da solo se l'agente ha attivato il giro automatico, gli annunci di privati della sua zona su Immobiliare.it, Idealista, Subito e CasaDaPrivato e mandarli al suo archivio nel portale.
+**Scopo unico:** cercare, quando l'agente lo chiede dal portale HomeRadar (dal computer o dal telefono) o da solo se l'agente ha attivato il giro automatico, gli annunci di privati della sua zona su Immobiliare.it, Idealista, Subito e CasaDaPrivato e mandarli al suo archivio nel portale.
 
 **Motivo dei permessi:**
 
 - `storage`: conserva il collegamento all'account del portale, la coda delle pagine lette in attesa d'invio e gli errori da segnalare.
-- `alarms`: riprova gli invii non riusciti, manda al portale un contatto al giorno (versione e ultimo uso) per sapere che il connettore funziona e ogni 15 minuti, se l'agente sta usando il computer, chiede al portale se è ora del giro automatico. Con il giro automatico spento la domanda parte al più una volta l'ora (per accorgersi se l'agente lo attiva da un altro dispositivo) e il portale risponde sempre di no.
-- `notifications`: tre avvisi: i dati di un giro non riescono a partire da molto tempo (problema di connessione); un giro automatico è partito (con il pulsante «Ferma»); un portale ha chiesto una verifica durante il giro automatico.
+- `alarms`: riprova gli invii non riusciti, manda al portale un contatto al giorno (versione e ultimo uso) per sapere che il connettore funziona e ogni 15 minuti, se l'agente sta usando il computer, chiede al portale se è ora del giro automatico. Con il giro automatico spento la domanda parte al più una volta l'ora (per accorgersi se l'agente lo attiva da un altro dispositivo) e il portale risponde sempre di no. Se l'agente ha attivato «Avvia dal telefono» su questo computer, ogni minuto chiede al portale se ha chiesto un giro dal telefono (altrimenti ogni 15 minuti, per accorgersi che l'ha attivato).
+- `notifications`: quattro avvisi: i dati di un giro non riescono a partire da molto tempo (problema di connessione); un giro automatico è partito (con il pulsante «Ferma»); un giro chiesto dal telefono è partito (con il pulsante «Ferma»); un portale ha chiesto una verifica durante il giro automatico.
 - `idle`: sapere se l'agente sta usando il computer, perché il giro automatico parta solo allora (mai a computer bloccato o inattivo).
-- Host `www.immobiliare.it`, `www.idealista.it`, `www.subito.it`, `www.casadaprivato.it`: leggere i risultati delle ricerche, solo nella scheda del giro (lanciato dall'agente o automatico se l'ha attivato). Su Immobiliare.it e Subito uno script nella pagina (in ogni scheda) inoltra i dati che il sito ha già caricato; si usano solo nella scheda del giro.
+- Host `www.immobiliare.it`, `www.idealista.it`, `www.subito.it`, `www.casadaprivato.it`: leggere i risultati delle ricerche, solo nella scheda del giro (lanciato dall'agente, dal computer o dal telefono, o automatico se l'ha attivato). Su Immobiliare.it e Subito uno script nella pagina (in ogni scheda) inoltra i dati che il sito ha già caricato; si usano solo nella scheda del giro.
 - Host del portale (`homeradar-portale.homeradar-pilot-worker.workers.dev`): mandare gli annunci letti all'account dell'agente e ricevere dalla pagina del portale i comandi «Cerca» e «Ferma».
 
 **Codice remoto:** no, tutto il codice è nel pacchetto.

@@ -1,4 +1,5 @@
 import type { UsageStats } from '../core/usage';
+import type { RemoteState } from '../core/remote';
 
 export type Portal = 'immobiliare' | 'idealista' | 'subito' | 'casadaprivato';
 export const PORTALS: Portal[] = ['immobiliare', 'idealista', 'subito', 'casadaprivato'];
@@ -57,6 +58,8 @@ export interface SweepResult {
   missing: number;
   /** Partito da solo (giro automatico); assente nei risultati salvati prima che esistesse. */
   auto?: boolean;
+  /** Avviato dal telefono; assente nei risultati salvati prima che esistesse. */
+  remote?: boolean;
 }
 
 /** Avanzamento del giro in corso, per il pannello. */
@@ -70,11 +73,31 @@ export interface SweepProgress {
   drops: number;
   /** Partito da solo (giro automatico). */
   auto: boolean;
+  /** Avviato dal telefono. */
+  remote: boolean;
+  /** Nome mostrato del computer che fa il giro. */
+  deviceName: string | null;
+  /** «Ferma» premuto dal telefono: il connettore lo vede al prossimo lotto o controllo. */
+  stopRequested: boolean;
+  /** Il connettore del computer del giro sa ricevere «Ferma» dal telefono (versione abbastanza nuova). */
+  canStop: boolean;
+}
+
+/** Richiesta di giro dal telefono, come la vede il telefono. */
+export interface RemoteStatus {
+  state: RemoteState;
+  createdAt: number;
+  /** Computer che l'ha presa. */
+  deviceName: string | null;
 }
 
 export interface SweepStatus {
   running: SweepProgress | null;
   last: SweepResult | null;
+  /** Ultima richiesta dal telefono degli ultimi minuti; null se non c'è o è stata annullata. */
+  remote: RemoteStatus | null;
+  /** Computer con «Avvia dal telefono» attivo (e connettore abbastanza nuovo), e nomi di quelli online. */
+  computers: { enabled: number; online: string[] };
 }
 
 /** Zona di lavoro: dove e cosa cerca il giro delle ricerche. */
