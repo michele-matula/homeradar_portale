@@ -27,7 +27,7 @@ Obiettivo economico: circa 500 €/mese fra un anno (per esempio 20 agenti a 25 
 - Migrazione dei dati del pilota: si riparte da zero.
 - Pagamenti online: Michele fattura a mano.
 - Registrazione libera: solo su invito.
-- Lancio della ricerca dal telefono (seconda versione, §11). Le ricerche programmate sono arrivate prima, come giro automatico: `docs/superpowers/specs/2026-10-26-giro-automatico-design.md`.
+- Lancio della ricerca dal telefono: arrivato con la tappa 6e (`docs/superpowers/specs/2026-11-06-avvia-dal-telefono-design.md`), sul computer dell'agente. Le ricerche programmate sono arrivate prima, come giro automatico: `docs/superpowers/specs/2026-10-26-giro-automatico-design.md`.
 - Badge sulle card dei portali e pannello laterale: spariscono.
 - Agenzie con più agenti e ruoli: un solo ruolo, l'agente singolo (più l'admin).
 - Notifiche fuori dal portale (mail, push): i richiami si vedono solo nel portale.
@@ -122,7 +122,7 @@ Nella prima versione l'archivio non si cancella **[scelta di Claude]**: è il va
 2. Nessuna risposta: il portale mostra «Installa il connettore» con il link al Web Store e le istruzioni (anche per Edge). Dopo l'installazione il portale riprova da solo.
 3. Prima volta su quel browser: il portale chiede al server un codice di collegamento (monouso, 5 minuti) e lo passa all'estensione, che lo scambia con un token di dispositivo a lunga durata. Il token sta in `chrome.storage.local`; l'agente vede i suoi dispositivi nel portale e può scollegarli.
 4. Un agente può avere più dispositivi (PC dell'ufficio e di casa).
-5. Su telefono e tablet il pulsante «Cerca» non c'è: al suo posto c'è un avviso "le ricerche partono dal computer" e l'esito dell'ultimo giro.
+5. Su telefono e tablet il pulsante «Cerca» non c'è: al suo posto c'è «Avvia sul computer», che fa partire il giro su un computer dell'agente (tappa 6e), e l'esito dell'ultimo giro.
 
 ### 6.3 Il giro delle ricerche
 1. L'agente clicca «Cerca» nel portale (desktop). Il portale manda `startSweep` all'estensione.
@@ -208,7 +208,7 @@ Si costruisce a tappe; il portale va al primo cliente solo quando tutte sono fin
 8. Parere legale → primo cliente.
 
 ## 11. Dopo la prima versione
-- Lancio della ricerca dal telefono (il connettore interroga il server ogni minuto con `chrome.alarms`). Le ricerche programmate sono già il giro automatico (tappa 6c), da valutare nel parere legale.
+- Le ricerche programmate (giro automatico, tappa 6c) e il lancio dal telefono (tappa 6e) sono fatti: da valutare nel parere legale.
 - Coordinamento dei giri fra agenti della stessa zona (dividersi le ricerche invece di saltare quelle fresche).
 - Notifiche fuori dal portale, se servono.
 
