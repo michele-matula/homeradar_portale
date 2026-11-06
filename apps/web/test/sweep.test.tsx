@@ -227,7 +227,8 @@ describe('avanzamento del giro', () => {
 });
 
 describe('computer collegati', () => {
-  const PC = { id: 'd1', name: 'Chrome su Windows', createdAt: 1, lastSeenAt: null };
+  const PC = { id: 'd1', name: 'Chrome su Windows', label: null, createdAt: 1, lastSeenAt: null, remote: false, remoteReady: true, online: false };
+  const absent = () => fakeConnector(() => null).port;
 
   it('scollega un computer', async () => {
     let list = [PC];
@@ -238,7 +239,7 @@ describe('computer collegati', () => {
         return { status: 204 };
       },
     });
-    render(<Devices />);
+    render(<Devices connector={absent()} />);
     expect(await screen.findByText('Chrome su Windows')).toBeTruthy();
     expect(screen.getByText(/ultimo uso mai/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Scollega' }));
@@ -246,9 +247,77 @@ describe('computer collegati', () => {
     expect(calls.some((c) => c.method === 'DELETE' && c.path === '/api/devices/d1')).toBe(true);
   });
 
+  it('nome scelto, online e nome automatico sotto; «(questo computer)» dal ping', async () => {
+    mockApi({ 'GET /api/devices': { status: 200, body: [{ ...PC, label: 'PC di casa', remote: true, online: true }] } });
+    render(<Devices connector={fakeConnector(() => ok(STATE)).port} />);
+    expect(await screen.findByText('PC di casa')).toBeTruthy();
+    expect(screen.getByText(/Online ora/)).toBeTruthy();
+    expect(screen.getByText(/Chrome su Windows/)).toBeTruthy();
+    expect(await screen.findByText('(questo computer)')).toBeTruthy();
+  });
+
+  it('abilitato ma non raggiungibile: lo dice', async () => {
+    mockApi({ 'GET /api/devices': { status: 200, body: [{ ...PC, remote: true, online: false, lastSeenAt: Date.UTC(2026, 10, 6, 8, 12) }] } });
+    render(<Devices connector={absent()} />);
+    expect(await screen.findByText(/Non raggiungibile · visto l'ultima volta/)).toBeTruthy();
+  });
+
+  it('connettore vecchio: niente interruttore, invito ad aggiornare', async () => {
+    mockApi({ 'GET /api/devices': { status: 200, body: [{ ...PC, remoteReady: false }] } });
+    render(<Devices connector={absent()} />);
+    expect(await screen.findByText(/Aggiorna il connettore per usare l'avvio dal telefono/)).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: 'Avvia dal telefono' })).toBeNull();
+  });
+
+  it('interruttore: salva e avvisa il connettore di questo computer', async () => {
+    let list = [PC];
+    const calls = mockApi({
+      'GET /api/devices': () => ({ status: 200, body: list }),
+      'PATCH /api/devices/d1': (b) => {
+        list = [{ ...PC, ...(b as object) }];
+        return { status: 200, body: list[0] };
+      },
+    });
+    const c = fakeConnector(() => ok(STATE));
+    render(<Devices connector={c.port} />);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Avvia dal telefono' }));
+    await vi.waitFor(() => expect(c.types()).toContain('remoteChanged'));
+    expect(calls.find((x) => x.method === 'PATCH')).toMatchObject({ path: '/api/devices/d1', body: { remote: true } });
+    expect(((await screen.findByRole('checkbox', { name: 'Avvia dal telefono' })) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('rinomina; vuoto torna al nome automatico', async () => {
+    const calls = mockApi({
+      'GET /api/devices': { status: 200, body: [PC] },
+      'PATCH /api/devices/d1': { status: 200, body: PC },
+    });
+    render(<Devices connector={absent()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rinomina' }));
+    const input = screen.getByLabelText('Nuovo nome');
+    fireEvent.change(input, { target: { value: 'PC ufficio' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await vi.waitFor(() => expect(calls.filter((x) => x.method === 'PATCH')).toHaveLength(1));
+    expect(calls.find((x) => x.method === 'PATCH')!.body).toEqual({ label: 'PC ufficio' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Rinomina' }));
+    const again = screen.getByLabelText('Nuovo nome');
+    fireEvent.change(again, { target: { value: '  ' } });
+    fireEvent.keyDown(again, { key: 'Enter' });
+    await vi.waitFor(() => expect(calls.filter((x) => x.method === 'PATCH')).toHaveLength(2));
+    expect(calls.filter((x) => x.method === 'PATCH')[1]!.body).toEqual({ label: null });
+  });
+
+  it('Esc annulla la rinomina', async () => {
+    const calls = mockApi({ 'GET /api/devices': { status: 200, body: [PC] } });
+    render(<Devices connector={absent()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rinomina' }));
+    fireEvent.keyDown(screen.getByLabelText('Nuovo nome'), { key: 'Escape' });
+    expect(screen.queryByLabelText('Nuovo nome')).toBeNull();
+    expect(calls.some((x) => x.method === 'PATCH')).toBe(false);
+  });
+
   it('nessun computer: niente elenco', async () => {
     mockApi({ 'GET /api/devices': { status: 200, body: [] } });
-    const { container } = render(<Devices />);
+    const { container } = render(<Devices connector={absent()} />);
     await vi.waitFor(() => expect(container.textContent).toBe(''));
   });
 });
