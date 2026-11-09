@@ -19,7 +19,9 @@ export const connectorRoutes: Route[] = [
     const user = userId && (await findUserById(env.DB, userId));
     if (!user) return fail(400, 'Codice di collegamento non valido o scaduto');
     if (user.status !== 'active') return fail(403, 'Account sospeso');
-    const { id, token } = await insertDevice(env.DB, user.id, body.name, now, body.version);
+    // Il connettore manda qui il nome scelto dall'agente (o quello automatico, se non l'ha scelto): diventa anche
+    // l'etichetta, che hello non tocca. Senza, al primo hello il nome tornerebbe «Chrome su Windows».
+    const { id, token } = await insertDevice(env.DB, user.id, body.name, now, body.version, body.name);
     if (body.previousToken) await replaceDevice(env.DB, user.id, body.previousToken, id);
     // L'account del token: il portale lo confronta con quello di chi è entrato (PC condiviso, cambio d'account).
     return json({ token, userId: user.id, deviceId: id }, 201);

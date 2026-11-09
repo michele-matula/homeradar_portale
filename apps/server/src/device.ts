@@ -12,15 +12,19 @@ const NOT_LINKED = 'Connettore non collegato';
 /** Codice che il portale passa al connettore per collegarlo: monouso. */
 export const LINK_CODE_TTL_MS = 5 * 60_000;
 
-/** Nuovo dispositivo dell'utente: il token si restituisce una volta sola, nel database c'è solo il suo hash. */
+/**
+ * Nuovo dispositivo dell'utente: il token si restituisce una volta sola, nel database c'è solo il suo hash.
+ * `label`: il nome scelto dall'agente al collegamento. Va in `label` e non solo in `name`, che `/connector/hello`
+ * riscrive col nome automatico.
+ */
 export async function insertDevice(
-  db: D1Database, userId: string, name: string, now: number, version: string | null = null,
+  db: D1Database, userId: string, name: string, now: number, version: string | null = null, label: string | null = null,
 ): Promise<{ id: string; token: string }> {
   const id = crypto.randomUUID();
   const token = newToken();
   await db
-    .prepare('INSERT INTO devices (id, user_id, name, token_hash, version, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(id, userId, name, await hashToken(token), version, now)
+    .prepare('INSERT INTO devices (id, user_id, name, label, token_hash, version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, userId, name, label, await hashToken(token), version, now)
     .run();
   return { id, token };
 }

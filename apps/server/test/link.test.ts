@@ -227,6 +227,16 @@ describe('nome e «Avvia dal telefono»', () => {
     expect((await devices(u.cookie))[0]).toMatchObject({ label: null });
   });
 
+  it('il nome scelto al collegamento resta dopo hello, che aggiorna solo quello automatico', async () => {
+    const u = await agent();
+    const r = await fetchConnector('POST', '/connector/link', { code: await codeFor(u.cookie), name: 'Computer di casa', version: '0.3.0' });
+    const { token } = (await r.json()) as { token: string };
+    await fetchConnector('POST', '/connector/hello', { name: 'Chrome su Windows', version: '0.3.0' }, bearer(token));
+    expect((await devices(u.cookie))[0]).toMatchObject({ label: 'Computer di casa', name: 'Chrome su Windows' });
+    const shown = await env.DB.prepare('SELECT COALESCE(label, name) AS n FROM devices').first<string>('n');
+    expect(shown).toBe('Computer di casa');
+  });
+
   it('nome vuoto: 400; computer di un altro: 404', async () => {
     const u = await agent();
     const other = await agent();
